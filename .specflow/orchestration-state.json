@@ -5,7 +5,7 @@
     "name": "arrs-mcp-server",
     "path": "/Users/ppatterson/dev/arrs-mcp-server"
   },
-  "last_updated": "2026-01-25T04:58:28.096Z",
+  "last_updated": "2026-01-25T06:01:46.862Z",
   "orchestration": {
     "phase": {
       "id": null,
@@ -14,20 +14,19 @@
       "branch": null,
       "status": "not_started",
       "goals": [
-        "Create working MCP server for Claude Desktop/Code",
-        "Implement config loading (JSON + env vars)",
-        "Build Sonarr API client with error handling",
-        "Implement Sonarr semantic tools (tv_search, tv_add, tv_list, tv_episodes, tv_search_missing)",
-        "Implement Sonarr admin tools (queue, details, delete, profiles, folders, stuck, import, blacklist, calendar)",
-        "Implement cross-service tools (downloads_status, system_health, media_help)",
-        "Create documentation"
+        "Build Radarr API client following established service module pattern",
+        "Implement all Radarr semantic tools (movie_search, movie_add, movie_list, movie_upgrade, movie_delete)",
+        "Implement Radarr admin tools (queue, details, profiles, stuck, import, blacklist)",
+        "Add Radarr4K routing with safety-first defaults (HD unless explicitly requested)",
+        "Update cross-service tools (downloads_status, system_health) to include Radarr",
+        "Enhance movie_list with filtering/sorting/display options (like tv_list)"
       ],
-      "hasUserGate": true,
+      "hasUserGate": false,
       "userGateStatus": "confirmed"
     },
     "next_phase": {
-      "number": "0020",
-      "name": "radarr"
+      "number": "0030",
+      "name": "plex"
     },
     "step": {
       "current": "design",
@@ -35,7 +34,8 @@
       "status": "not_started"
     },
     "analyze": {
-      "completedAt": 1769314845
+      "iteration": null,
+      "completedAt": 1769318403
     },
     "implement": null,
     "progress": {
@@ -58,6 +58,15 @@
         "phase_name": "foundation-sonarr",
         "branch": "0010-foundation-sonarr",
         "completed_at": "2026-01-25T04:58:28.096Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0020",
+        "phase_name": "radarr",
+        "branch": "0020-radarr",
+        "completed_at": "2026-01-25T06:01:46.861Z",
         "tasks_completed": 0,
         "tasks_total": 0
       }

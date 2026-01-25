@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
+import { RadarrClient } from "../services/radarr/client.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
 interface ServiceHealth {
@@ -55,8 +56,86 @@ export function registerSystemHealthTool(server: McpServer, config: Config): voi
         }
       }
 
+      // Check Radarr
+      if (config.radarr) {
+        try {
+          const client = new RadarrClient(config.radarr);
+          const health = await client.getHealth();
+          const stuckItems = await client.getStuckItems();
+
+          const issues: string[] = [];
+
+          // Add health check issues
+          for (const check of health) {
+            if (check.type === "error" || check.type === "warning") {
+              issues.push(`${check.type.toUpperCase()}: ${check.message}`);
+            }
+          }
+
+          // Add stuck items as warning
+          if (stuckItems.length > 0) {
+            issues.push(`${stuckItems.length} items stuck importing`);
+          }
+
+          services.push({
+            name: "Radarr",
+            status: issues.some((i) => i.startsWith("ERROR"))
+              ? "error"
+              : issues.length > 0
+                ? "warning"
+                : "ok",
+            issues,
+          });
+        } catch (error) {
+          services.push({
+            name: "Radarr",
+            status: "error",
+            issues: [formatErrorResponse(error)],
+          });
+        }
+      }
+
+      // Check Radarr4K
+      if (config.radarr4k) {
+        try {
+          const client = new RadarrClient(config.radarr4k);
+          const health = await client.getHealth();
+          const stuckItems = await client.getStuckItems();
+
+          const issues: string[] = [];
+
+          // Add health check issues
+          for (const check of health) {
+            if (check.type === "error" || check.type === "warning") {
+              issues.push(`${check.type.toUpperCase()}: ${check.message}`);
+            }
+          }
+
+          // Add stuck items as warning
+          if (stuckItems.length > 0) {
+            issues.push(`${stuckItems.length} items stuck importing`);
+          }
+
+          services.push({
+            name: "Radarr4K",
+            status: issues.some((i) => i.startsWith("ERROR"))
+              ? "error"
+              : issues.length > 0
+                ? "warning"
+                : "ok",
+            issues,
+          });
+        } catch (error) {
+          services.push({
+            name: "Radarr4K",
+            status: "error",
+            issues: [formatErrorResponse(error)],
+          });
+        }
+      }
+
       // Placeholder for future services
-      // Radarr, Radarr4k, Plex, Sabnzbd will be added in later phases
+      // Plex, Sabnzbd will be added in later phases
 
       if (services.length === 0) {
         return {

@@ -203,6 +203,65 @@ import type { Series } from "./types.js";
 - Verify tool responses are Claude-friendly
 - Test both Claude Desktop and Code configurations
 
+## Lessons Learned (Phase 0020)
+
+### Entity IDs in Output
+
+**ALWAYS include entity IDs** in list and add responses. Users need IDs to call other tools like `_details`, `_delete`, `_upgrade`.
+
+```typescript
+// CORRECT - shows ID for use with other tools
+`[${movie.id}] ${movie.title} (${movie.year}) - ${status}`
+// Output: [974] Kung Fury (2015) - Released, Missing
+
+// WRONG - no way to reference this movie in other tools
+`${movie.title} (${movie.year}) - ${status}`
+// Output: Kung Fury (2015) - Released, Missing
+```
+
+Similarly, `_add` responses should include the created entity's ID:
+```typescript
+`Added "${movie.title}" to Radarr:\n` +
+`- Movie ID: ${movie.id}\n` +  // Include this!
+`- Folder: ${folderPath}\n`
+```
+
+### HTTP Empty Response Handling
+
+DELETE and some POST endpoints may return empty bodies. The shared HTTP client handles this:
+
+```typescript
+// In shared/http.ts - handles empty responses gracefully
+const text = await response.text();
+const data = text ? (JSON.parse(text) as T) : (undefined as T);
+```
+
+### API Response Normalization
+
+Some Radarr lookup endpoints return single objects, not arrays:
+- `/movie/lookup?term=query` → returns array
+- `/movie/lookup/imdb?imdbId=tt1234567` → returns **single object**
+- `/movie/lookup/tmdb?tmdbId=12345` → returns **single object**
+
+Always normalize to arrays in the client layer:
+```typescript
+// Wrap single-object responses in arrays for consistent handling
+const result = await this.http.get<MovieLookup>(`/movie/lookup/imdb?...`);
+return result ? [result] : [];
+```
+
+### Queue Item States
+
+Queue items can have these `trackedDownloadState` values:
+- `downloading` - actively downloading
+- `importPending` - waiting to import
+- `importBlocked` - blocked from importing (needs attention!)
+- `importing` - currently importing
+- `imported` - successfully imported
+- `failedPending` - failed, pending retry
+
+Always check for `importBlocked` in stuck item detection - it was missing initially.
+
 ## Git
 
 - Conventional commits: `feat:`, `fix:`, `docs:`, `chore:`

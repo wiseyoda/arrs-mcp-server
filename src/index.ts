@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
 import { registerSonarrTools } from "./services/sonarr/tools.js";
+import { registerRadarrTools } from "./services/radarr/tools.js";
 import { registerSystemTools } from "./tools/index.js";
 
 const server = new McpServer({
@@ -18,6 +19,9 @@ async function main() {
   // Register tools
   if (config.sonarr) {
     registerSonarrTools(server, config);
+  }
+  if (config.radarr || config.radarr4k) {
+    registerRadarrTools(server, config);
   }
   registerSystemTools(server, config);
 

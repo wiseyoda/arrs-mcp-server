@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
+import { RadarrClient } from "../services/radarr/client.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
 interface DownloadItem {
@@ -48,8 +49,64 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
         }
       }
 
+      // Get Radarr queue
+      if (config.radarr) {
+        try {
+          const client = new RadarrClient(config.radarr);
+          const queue = await client.getQueue();
+
+          for (const item of queue.records) {
+            const progress = item.size > 0 ? Math.round((1 - item.sizeleft / item.size) * 100) : 0;
+            const itemIssues = item.statusMessages?.map((m) => m.title);
+
+            downloads.push({
+              title: item.title,
+              progress,
+              eta: item.timeleft || "unknown",
+              status: item.trackedDownloadStatus || item.status,
+              source: "Radarr",
+              issues: itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
+            });
+
+            if (item.trackedDownloadStatus === "warning" || item.trackedDownloadStatus === "error") {
+              issues.push(`Radarr: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`);
+            }
+          }
+        } catch (error) {
+          issues.push(`Radarr: ${formatErrorResponse(error)}`);
+        }
+      }
+
+      // Get Radarr4K queue
+      if (config.radarr4k) {
+        try {
+          const client = new RadarrClient(config.radarr4k);
+          const queue = await client.getQueue();
+
+          for (const item of queue.records) {
+            const progress = item.size > 0 ? Math.round((1 - item.sizeleft / item.size) * 100) : 0;
+            const itemIssues = item.statusMessages?.map((m) => m.title);
+
+            downloads.push({
+              title: item.title,
+              progress,
+              eta: item.timeleft || "unknown",
+              status: item.trackedDownloadStatus || item.status,
+              source: "Radarr4K",
+              issues: itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
+            });
+
+            if (item.trackedDownloadStatus === "warning" || item.trackedDownloadStatus === "error") {
+              issues.push(`Radarr4K: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`);
+            }
+          }
+        } catch (error) {
+          issues.push(`Radarr4K: ${formatErrorResponse(error)}`);
+        }
+      }
+
       // Placeholder for future services
-      // Radarr, Sabnzbd will be added in later phases
+      // Sabnzbd will be added in later phases
 
       if (downloads.length === 0 && issues.length === 0) {
         return {

@@ -222,6 +222,31 @@
 - Queue endpoint: `/queue`
 - Queue details: `/queue/details`
 
+**Radarr Lookup Endpoints** (learned in Phase 0020):
+| Endpoint | Returns | Notes |
+|----------|---------|-------|
+| `/movie/lookup?term={query}` | Array | Text search |
+| `/movie/lookup/imdb?imdbId={id}` | **Single object** | Wrap in array! |
+| `/movie/lookup/tmdb?tmdbId={id}` | **Single object** | Wrap in array! |
+
+**Queue Item States**:
+```typescript
+trackedDownloadState:
+  | "downloading"    // Active download
+  | "importPending"  // Waiting to import
+  | "importBlocked"  // BLOCKED - needs attention!
+  | "importing"      // Currently importing
+  | "imported"       // Done
+  | "failedPending"  // Failed, pending retry
+
+trackedDownloadStatus:
+  | "ok"       // No issues
+  | "warning"  // Has warnings
+  | "error"    // Has errors
+```
+
+**DELETE Endpoints**: Return empty body (no JSON). Handle gracefully.
+
 ### Plex API
 
 - Token via `X-Plex-Token` header or `?X-Plex-Token=` query param

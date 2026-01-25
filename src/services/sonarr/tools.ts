@@ -206,6 +206,7 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
               type: "text",
               text:
                 `Added "${addedSeries.title}" to Sonarr:\n` +
+                `- Series ID: ${addedSeries.id}\n` +
                 `- Folder: ${folderPath}\n` +
                 `- Monitoring: ${monitorOption}\n` +
                 `- Episodes: ${episodeCount}\n` +
@@ -313,6 +314,8 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
         }
 
         // Format output with optional fields
+        // IMPORTANT: Always include series ID - users need it for sonarr_details, sonarr_delete, etc.
+        // See .specify/memory/coding-standards.md "Entity IDs in Output" section.
         const formatted = series.map((s) => {
           const stats = s.statistics;
           const episodeInfo = stats
@@ -321,7 +324,7 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
           const statusText = s.status === "continuing" ? "Continuing" : "Ended";
           const monitored = s.monitored ? "Monitored" : "Not monitored";
 
-          let line = `${s.title} (${s.year}) - ${statusText}, ${episodeInfo}, ${monitored}`;
+          let line = `[${s.id}] ${s.title} (${s.year}) - ${statusText}, ${episodeInfo}, ${monitored}`;
 
           // Optional fields
           const extras: string[] = [];

@@ -1,31 +1,26 @@
 /**
- * Sonarr v3 API Types
+ * Radarr v3 API Types
  */
 
-export interface Series {
+export interface Movie {
   id: number;
   title: string;
   sortTitle: string;
-  status: "continuing" | "ended" | "upcoming" | "deleted";
+  status: "released" | "inCinemas" | "announced" | "deleted";
   overview?: string;
-  network?: string;
-  airTime?: string;
+  studio?: string;
   images: Image[];
-  seasons: Season[];
   year: number;
   path: string;
   qualityProfileId: number;
-  seasonFolder: boolean;
   monitored: boolean;
-  useSceneNumbering: boolean;
+  minimumAvailability: "announced" | "inCinemas" | "released" | "tba";
+  isAvailable: boolean;
+  folderName?: string;
   runtime: number;
-  tvdbId: number;
-  tvRageId?: number;
-  tvMazeId?: number;
-  firstAired?: string;
-  seriesType: "standard" | "daily" | "anime";
   cleanTitle: string;
   imdbId?: string;
+  tmdbId: number;
   titleSlug: string;
   rootFolderPath?: string;
   certification?: string;
@@ -33,60 +28,63 @@ export interface Series {
   tags: number[];
   added: string;
   ratings: Ratings;
-  statistics: SeriesStatistics;
-  ended?: boolean;
-}
-
-export interface SeriesStatistics {
-  seasonCount: number;
-  episodeFileCount: number;
-  episodeCount: number;
-  totalEpisodeCount: number;
-  sizeOnDisk: number;
-  percentOfEpisodes: number;
-}
-
-export interface Season {
-  seasonNumber: number;
-  monitored: boolean;
-  statistics?: SeasonStatistics;
-}
-
-export interface SeasonStatistics {
-  episodeFileCount: number;
-  episodeCount: number;
-  totalEpisodeCount: number;
-  sizeOnDisk: number;
-  percentOfEpisodes: number;
-}
-
-export interface Episode {
-  id: number;
-  seriesId: number;
-  tvdbId?: number;
-  episodeFileId: number;
-  seasonNumber: number;
-  episodeNumber: number;
-  title: string;
-  airDate?: string;
-  airDateUtc?: string;
-  overview?: string;
   hasFile: boolean;
-  monitored: boolean;
-  absoluteEpisodeNumber?: number;
-  sceneAbsoluteEpisodeNumber?: number;
-  sceneEpisodeNumber?: number;
-  sceneSeasonNumber?: number;
-  unverifiedSceneNumbering: boolean;
-  grabbed?: boolean;
+  sizeOnDisk: number;
+  movieFile?: MovieFile;
+}
+
+export interface MovieLookup {
+  title: string;
+  sortTitle: string;
+  status: "released" | "inCinemas" | "announced" | "tba";
+  overview?: string;
+  studio?: string;
+  images: Image[];
+  remotePoster?: string;
+  year: number;
+  runtime: number;
+  cleanTitle: string;
+  imdbId?: string;
+  tmdbId: number;
+  titleSlug: string;
+  certification?: string;
+  genres: string[];
+  tags: number[];
+  ratings: Ratings;
+}
+
+export interface MovieFile {
+  id: number;
+  movieId: number;
+  relativePath: string;
+  path: string;
+  size: number;
+  dateAdded: string;
+  quality: QualityRevision;
+  mediaInfo?: MediaInfo;
+}
+
+export interface MediaInfo {
+  audioBitrate?: number;
+  audioChannels?: number;
+  audioCodec?: string;
+  audioLanguages?: string;
+  audioStreamCount?: number;
+  videoBitDepth?: number;
+  videoBitrate?: number;
+  videoCodec?: string;
+  videoDynamicRangeType?: string;
+  videoFps?: number;
+  resolution?: string;
+  runTime?: string;
+  scanType?: string;
+  subtitles?: string;
 }
 
 export interface QueueItem {
   id: number;
-  seriesId?: number;
-  episodeId?: number;
-  series?: Series;
-  episode?: Episode;
+  movieId?: number;
+  movie?: Movie;
   quality: QualityRevision;
   size: number;
   title: string;
@@ -158,14 +156,22 @@ export interface UnmappedFolder {
 }
 
 export interface Image {
-  coverType: "banner" | "poster" | "fanart";
+  coverType: "poster" | "fanart" | "banner" | "screenshot" | "headshot";
   url: string;
   remoteUrl?: string;
 }
 
 export interface Ratings {
+  imdb?: RatingValue;
+  tmdb?: RatingValue;
+  metacritic?: RatingValue;
+  rottenTomatoes?: RatingValue;
+}
+
+export interface RatingValue {
   votes: number;
   value: number;
+  type: string;
 }
 
 export interface HealthCheck {
@@ -173,14 +179,6 @@ export interface HealthCheck {
   type: "error" | "warning" | "notice";
   message: string;
   wikiUrl?: string;
-}
-
-export interface Calendar {
-  seriesId: number;
-  episodeId: number;
-  series: Series;
-  episode: Episode;
-  releaseDate?: string;
 }
 
 export interface Command {
@@ -201,60 +199,24 @@ export interface Command {
   updateScheduledTask: boolean;
 }
 
-export interface SeriesLookup {
-  title: string;
-  sortTitle: string;
-  status: string;
-  overview?: string;
-  network?: string;
-  airTime?: string;
-  images: Image[];
-  remotePoster?: string;
-  seasons: Season[];
-  year: number;
-  qualityProfileId?: number;
-  seasonFolder?: boolean;
-  monitored?: boolean;
-  useSceneNumbering?: boolean;
-  runtime: number;
-  tvdbId: number;
-  tvRageId?: number;
-  tvMazeId?: number;
-  firstAired?: string;
-  seriesType?: string;
-  cleanTitle: string;
-  imdbId?: string;
-  titleSlug: string;
-  rootFolderPath?: string;
-  certification?: string;
-  genres: string[];
-  tags: number[];
-  added?: string;
-  ratings: Ratings;
-  statistics?: SeriesStatistics;
-}
-
-export interface AddSeriesRequest {
-  tvdbId: number;
+export interface AddMovieRequest {
+  tmdbId: number;
   title: string;
   qualityProfileId: number;
   titleSlug: string;
   images: Image[];
-  seasons: Season[];
   rootFolderPath: string;
   monitored?: boolean;
-  seasonFolder?: boolean;
-  seriesType?: string;
+  minimumAvailability?: "announced" | "inCinemas" | "released" | "tba";
   tags?: number[];
-  addOptions?: AddSeriesOptions;
+  addOptions?: AddMovieOptions;
 }
 
-export interface AddSeriesOptions {
+export interface AddMovieOptions {
+  searchForMovie?: boolean;
   ignoreEpisodesWithFiles?: boolean;
   ignoreEpisodesWithoutFiles?: boolean;
-  monitor?: "all" | "future" | "missing" | "existing" | "pilot" | "firstSeason" | "none";
-  searchForMissingEpisodes?: boolean;
-  searchForCutoffUnmetEpisodes?: boolean;
+  monitor?: "movieOnly" | "movieAndCollection" | "none";
 }
 
 export interface QueuePage {

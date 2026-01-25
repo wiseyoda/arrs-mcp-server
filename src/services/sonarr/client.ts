@@ -154,13 +154,20 @@ export class SonarrClient {
     return allSeries.find((s) => s.tvdbId === tvdbId) || null;
   }
 
-  // Utility: Get stuck items (imports pending for too long)
-
+  /**
+   * Get items stuck in importing state or with errors.
+   *
+   * IMPORTANT: Check for BOTH importPending AND importBlocked states!
+   * importBlocked was discovered during Phase 0020 testing - items can get
+   * stuck in this state and need manual intervention.
+   * See .specify/memory/api-standards.md "Queue Item States" section.
+   */
   async getStuckItems(): Promise<QueueItem[]> {
     const queue = await this.getQueueDetails();
     return queue.filter(
       (item) =>
         item.trackedDownloadState === "importPending" ||
+        item.trackedDownloadState === "importBlocked" ||
         item.trackedDownloadStatus === "warning" ||
         item.trackedDownloadStatus === "error"
     );

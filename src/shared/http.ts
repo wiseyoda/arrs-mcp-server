@@ -55,7 +55,12 @@ export class HttpClient {
         );
       }
 
-      const data = (await response.json()) as T;
+      // Handle empty responses (e.g., 204 No Content, or DELETE with empty body)
+      // IMPORTANT: Sonarr/Radarr DELETE endpoints return empty bodies.
+      // Calling response.json() on empty body throws "Unexpected end of JSON input".
+      // We parse text manually to handle this gracefully.
+      const text = await response.text();
+      const data = text ? (JSON.parse(text) as T) : (undefined as T);
       return { data, status: response.status };
     } catch (error) {
       clearTimeout(timeoutId);
