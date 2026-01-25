@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js";
 import { registerSonarrTools } from "./services/sonarr/tools.js";
 import { registerRadarrTools } from "./services/radarr/tools.js";
+import { registerPlexTools } from "./services/plex/tools.js";
 import { registerSystemTools } from "./tools/index.js";
 
 const server = new McpServer({
@@ -22,6 +23,9 @@ async function main() {
   }
   if (config.radarr || config.radarr4k) {
     registerRadarrTools(server, config);
+  }
+  if (config.plex) {
+    registerPlexTools(server, config);
   }
   registerSystemTools(server, config);
 

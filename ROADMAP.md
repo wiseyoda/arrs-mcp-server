@@ -34,7 +34,7 @@ This allows inserting urgent work without renumbering existing phases.
 | ----- | ---- | ------ | ----------------- |
 | 0010 | foundation-sonarr | ✅ Complete | **USER GATE**: MCP server starts, Sonarr tools work in Claude Desktop/Code |
 | 0020 | radarr | ✅ Complete | Movie tools work, 4K routing correct |
-| 0030  | plex | ⬜ Not Started | Library search and watch status work |
+| 0030 | plex | ✅ Complete | Library search and watch status work |
 | 0040  | sabnzbd | ⬜ Not Started | Download queue management works |
 | 0050  | polish-extended | ⬜ Not Started | All extended tools, cleanup workflows |
 

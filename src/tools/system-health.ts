@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
 import { RadarrClient } from "../services/radarr/client.js";
+import { PlexClient } from "../services/plex/client.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
 interface ServiceHealth {
@@ -134,8 +135,32 @@ export function registerSystemHealthTool(server: McpServer, config: Config): voi
         }
       }
 
+      // Check Plex
+      if (config.plex) {
+        try {
+          const client = new PlexClient(config.plex);
+          const identity = await client.getServerIdentity();
+          const libraries = await client.getLibraries();
+
+          services.push({
+            name: "Plex",
+            status: "ok",
+            issues:
+              libraries.length > 0
+                ? [`${libraries.length} libraries, server: ${identity.MediaContainer.friendlyName}`]
+                : [],
+          });
+        } catch (error) {
+          services.push({
+            name: "Plex",
+            status: "error",
+            issues: [formatErrorResponse(error)],
+          });
+        }
+      }
+
       // Placeholder for future services
-      // Plex, Sabnzbd will be added in later phases
+      // Sabnzbd will be added in later phases
 
       if (services.length === 0) {
         return {
