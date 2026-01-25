@@ -17,6 +17,7 @@ export interface Config {
   radarr4k?: ServiceConfig;
   plex?: PlexConfig;
   sabnzbd?: ServiceConfig;
+  overseerr?: ServiceConfig;
 }
 
 function getEnvConfig(): Partial<Config> {
@@ -62,6 +63,14 @@ function getEnvConfig(): Partial<Config> {
     };
   }
 
+  // Overseerr
+  if (process.env.OVERSEERR_URL && process.env.OVERSEERR_API_KEY) {
+    config.overseerr = {
+      url: process.env.OVERSEERR_URL,
+      apiKey: process.env.OVERSEERR_API_KEY,
+    };
+  }
+
   return config;
 }
 
@@ -96,6 +105,7 @@ function mergeConfigs(
     radarr4k: envConfig.radarr4k || fileConfig.radarr4k,
     plex: envConfig.plex || fileConfig.plex,
     sabnzbd: envConfig.sabnzbd || fileConfig.sabnzbd,
+    overseerr: envConfig.overseerr || fileConfig.overseerr,
   };
 }
 
@@ -123,6 +133,10 @@ function validateConfig(config: Config): void {
 
   if (config.sabnzbd?.url && config.sabnzbd?.apiKey) {
     configuredServices.push("Sabnzbd");
+  }
+
+  if (config.overseerr?.url && config.overseerr?.apiKey) {
+    configuredServices.push("Overseerr");
   }
 
   if (configuredServices.length === 0) {

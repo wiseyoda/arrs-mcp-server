@@ -1,6 +1,6 @@
 # arrs-mcp-server
 
-MCP server for managing Sonarr, Radarr, Plex, and Sabnzbd through Claude.
+MCP server for managing Sonarr, Radarr, Plex, Sabnzbd, and Overseerr through Claude.
 
 ## Features
 
@@ -8,6 +8,7 @@ MCP server for managing Sonarr, Radarr, Plex, and Sabnzbd through Claude.
 - **Movie Management** (Radarr): Search, add, list movies with HD/4K quality routing
 - **Library Management** (Plex): Browse, search, and manage your media library
 - **Download Management** (Sabnzbd): Monitor queue, pause/resume, manage downloads
+- **Request Management** (Overseerr): Approve/decline requests, manage users, track issues
 - **System Health**: Check service connectivity and identify issues
 - **Cleanup Analysis**: Find unwatched content, duplicates, and cleanup opportunities
 - **Natural Language**: Tools designed for intuitive Claude interaction
@@ -50,6 +51,10 @@ export PLEX_TOKEN="your-token"
 # Sabnzbd
 export SABNZBD_URL="http://localhost:8080"
 export SABNZBD_API_KEY="your-api-key"
+
+# Overseerr
+export OVERSEERR_URL="http://localhost:5055"
+export OVERSEERR_API_KEY="your-api-key"
 ```
 
 ### Option 2: Config File
@@ -77,6 +82,10 @@ Create `config.json` in the project root:
   "sabnzbd": {
     "url": "http://localhost:8080",
     "apiKey": "your-api-key"
+  },
+  "overseerr": {
+    "url": "http://localhost:5055",
+    "apiKey": "your-api-key"
   }
 }
 ```
@@ -88,6 +97,7 @@ See `config.example.json` for all available options.
 - **Sonarr/Radarr**: Settings → General → Security → API Key
 - **Plex**: [Finding your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 - **Sabnzbd**: Config → General → API Key
+- **Overseerr**: Settings → General → API Key
 
 ## Claude Desktop Setup
 
@@ -107,7 +117,9 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
         "PLEX_URL": "http://localhost:32400",
         "PLEX_TOKEN": "your-token",
         "SABNZBD_URL": "http://localhost:8080",
-        "SABNZBD_API_KEY": "your-api-key"
+        "SABNZBD_API_KEY": "your-api-key",
+        "OVERSEERR_URL": "http://localhost:5055",
+        "OVERSEERR_API_KEY": "your-api-key"
       }
     }
   }
@@ -272,6 +284,32 @@ Add to your Claude Code settings (`.claude/settings.json` or via the settings UI
 | `sabnzbd_quota` | Show quota usage and limits |
 | `sabnzbd_warnings` | Show system warnings |
 
+### Request Tools (Overseerr)
+
+#### Semantic Tools (User-Facing)
+
+| Tool | Description |
+|------|-------------|
+| `request_list` | List media requests with status filtering |
+| `request_approve` | Approve a pending request |
+| `request_decline` | Decline a request with optional reason |
+
+#### Admin Tools
+
+| Tool | Description |
+|------|-------------|
+| `overseerr_request_details` | Get detailed request information |
+| `overseerr_request_delete` | Delete a request (requires confirmation) |
+| `overseerr_users` | List all Overseerr users |
+| `overseerr_user_requests` | View a user's request history |
+| `overseerr_user_quota` | Check user quota limits |
+| `overseerr_issues` | List reported issues |
+| `overseerr_issue_details` | Get detailed issue information |
+| `overseerr_issue_comment` | Add comment to an issue |
+| `overseerr_issue_resolve` | Mark an issue as resolved |
+| `overseerr_trending` | Get trending movies and TV shows |
+| `overseerr_upcoming` | Get upcoming movie releases |
+
 ## Example Usage
 
 Once configured, you can interact naturally with Claude:
@@ -286,6 +324,10 @@ Once configured, you can interact naturally with Claude:
 - "Show me movies I haven't watched in over a year"
 - "Find duplicate movies in Plex"
 - "Pause all downloads"
+- "What requests are pending?"
+- "Approve the request for Inception"
+- "Show me trending movies"
+- "What issues have been reported?"
 
 ## Development
 

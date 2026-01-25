@@ -7,6 +7,7 @@ import { registerSonarrTools } from "./services/sonarr/tools.js";
 import { registerRadarrTools } from "./services/radarr/tools.js";
 import { registerPlexTools } from "./services/plex/tools.js";
 import { registerSabnzbdTools } from "./services/sabnzbd/tools.js";
+import { registerOverseerrTools } from "./services/overseerr/tools.js";
 import { registerSystemTools } from "./tools/index.js";
 
 const server = new McpServer({
@@ -30,6 +31,9 @@ async function main() {
   }
   if (config.sabnzbd) {
     registerSabnzbdTools(server, config);
+  }
+  if (config.overseerr) {
+    registerOverseerrTools(server, config);
   }
   registerSystemTools(server, config);
 

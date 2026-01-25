@@ -5,6 +5,7 @@ import { SonarrClient } from "../services/sonarr/client.js";
 import { RadarrClient } from "../services/radarr/client.js";
 import { PlexClient } from "../services/plex/client.js";
 import { SabnzbdClient } from "../services/sabnzbd/client.js";
+import { OverseerrClient } from "../services/overseerr/client.js";
 import { formatSpeed, formatMb } from "../services/sabnzbd/types.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
@@ -370,6 +371,46 @@ export function registerSystemHealthTool(
         } catch (error) {
           services.push({
             name: "Sabnzbd",
+            status: "error",
+            issues: [formatErrorResponse(error)],
+          });
+        }
+      }
+
+      // Check Overseerr
+      if (config.overseerr) {
+        try {
+          const client = new OverseerrClient(config.overseerr);
+          const health = await client.checkHealth();
+
+          const serviceHealth: ServiceHealth = {
+            name: "Overseerr",
+            status: "ok",
+            issues: [],
+          };
+
+          // Add verbose details
+          if (verbose) {
+            serviceHealth.version = health.version;
+
+            // Get pending request count
+            const pendingPage = await client.getRequests("pending", 1);
+            const allPage = await client.getRequests(undefined, 1);
+
+            serviceHealth.counts = {
+              pendingRequests: pendingPage.pageInfo.results,
+              totalRequests: allPage.pageInfo.results,
+            };
+            serviceHealth.queueInfo =
+              pendingPage.pageInfo.results > 0
+                ? `${pendingPage.pageInfo.results} pending requests`
+                : "No pending requests";
+          }
+
+          services.push(serviceHealth);
+        } catch (error) {
+          services.push({
+            name: "Overseerr",
             status: "error",
             issues: [formatErrorResponse(error)],
           });
