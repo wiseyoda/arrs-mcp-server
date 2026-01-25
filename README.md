@@ -1,6 +1,6 @@
 # arrs-mcp-server
 
-MCP server for managing Sonarr, Radarr, Plex, Sabnzbd, and Overseerr through Claude.
+MCP server for managing Sonarr, Radarr, Plex, Sabnzbd, Overseerr, and TMDB through Claude.
 
 ## Features
 
@@ -9,6 +9,7 @@ MCP server for managing Sonarr, Radarr, Plex, Sabnzbd, and Overseerr through Cla
 - **Library Management** (Plex): Browse, search, and manage your media library
 - **Download Management** (Sabnzbd): Monitor queue, pause/resume, manage downloads
 - **Request Management** (Overseerr): Approve/decline requests, manage users, track issues
+- **Discovery & Collections** (TMDB): Find missing movies from franchises, get recommendations
 - **System Health**: Check service connectivity and identify issues
 - **Cleanup Analysis**: Find unwatched content, duplicates, and cleanup opportunities
 - **Natural Language**: Tools designed for intuitive Claude interaction
@@ -55,6 +56,9 @@ export SABNZBD_API_KEY="your-api-key"
 # Overseerr
 export OVERSEERR_URL="http://localhost:5055"
 export OVERSEERR_API_KEY="your-api-key"
+
+# TMDB (for collection and recommendation features)
+export TMDB_API_KEY="your-api-key"
 ```
 
 ### Option 2: Config File
@@ -86,6 +90,9 @@ Create `config.json` in the project root:
   "overseerr": {
     "url": "http://localhost:5055",
     "apiKey": "your-api-key"
+  },
+  "tmdb": {
+    "apiKey": "your-api-key"
   }
 }
 ```
@@ -98,6 +105,7 @@ See `config.example.json` for all available options.
 - **Plex**: [Finding your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 - **Sabnzbd**: Config → General → API Key
 - **Overseerr**: Settings → General → API Key
+- **TMDB**: Sign up at [themoviedb.org](https://www.themoviedb.org/settings/api) and request an API key
 
 ## Claude Desktop Setup
 
@@ -119,7 +127,8 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
         "SABNZBD_URL": "http://localhost:8080",
         "SABNZBD_API_KEY": "your-api-key",
         "OVERSEERR_URL": "http://localhost:5055",
-        "OVERSEERR_API_KEY": "your-api-key"
+        "OVERSEERR_API_KEY": "your-api-key",
+        "TMDB_API_KEY": "your-api-key"
       }
     }
   }
@@ -310,6 +319,25 @@ Add to your Claude Code settings (`.claude/settings.json` or via the settings UI
 | `overseerr_trending` | Get trending movies and TV shows |
 | `overseerr_upcoming` | Get upcoming movie releases |
 
+### Discovery Tools (TMDB)
+
+#### Semantic Tools (User-Facing)
+
+| Tool | Description |
+|------|-------------|
+| `collection_status` | Check how many movies from a franchise you own |
+| `collection_missing` | List missing movies from a collection |
+| `collection_add_missing` | Add missing collection items to Radarr |
+
+#### Admin Tools
+
+| Tool | Description |
+|------|-------------|
+| `tmdb_collection` | Look up a movie collection by name or ID |
+| `tmdb_similar` | Find movies similar to a given title |
+| `tmdb_recommendations` | Get recommendations based on a movie |
+| `tmdb_search` | Search TMDB for movies by title |
+
 ## Example Usage
 
 Once configured, you can interact naturally with Claude:
@@ -328,6 +356,10 @@ Once configured, you can interact naturally with Claude:
 - "Approve the request for Inception"
 - "Show me trending movies"
 - "What issues have been reported?"
+- "What MCU movies am I missing?"
+- "Find movies similar to Inception that I don't own"
+- "Show me the Star Wars collection"
+- "Add missing Marvel movies to Radarr"
 
 ## Development
 

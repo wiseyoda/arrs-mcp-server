@@ -38,7 +38,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 0040 | sabnzbd | ✅ Complete | Download queue management works |
 | 0050 | polish-extended | ✅ Complete | All extended tools, cleanup workflows |
 | 0060 | overseerr | ✅ Complete | Request management, user management, discovery |
-| 0070 | discovery-engine | ⬜ Not Started | TMDB + Trakt + Letterboxd integration |
+| 0070 | discovery-engine | ✅ Complete | TMDB + Trakt + Letterboxd integration |
 | 0080 | state-foundation | ⬜ Not Started | SQLite database, audit log, undo, analytics |
 | 0090 | library-intelligence | ⬜ Not Started | Cross-service consistency, smart cleanup |
 | 0100 | telegram-notifications | ⬜ Not Started | Enhanced notifications via Telegram bot |

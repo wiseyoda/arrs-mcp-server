@@ -11,6 +11,10 @@ export interface PlexConfig {
   token: string;
 }
 
+export interface TmdbConfig {
+  apiKey: string;
+}
+
 export interface Config {
   sonarr?: ServiceConfig;
   radarr?: ServiceConfig;
@@ -18,6 +22,7 @@ export interface Config {
   plex?: PlexConfig;
   sabnzbd?: ServiceConfig;
   overseerr?: ServiceConfig;
+  tmdb?: TmdbConfig;
 }
 
 function getEnvConfig(): Partial<Config> {
@@ -71,6 +76,13 @@ function getEnvConfig(): Partial<Config> {
     };
   }
 
+  // TMDB
+  if (process.env.TMDB_API_KEY) {
+    config.tmdb = {
+      apiKey: process.env.TMDB_API_KEY,
+    };
+  }
+
   return config;
 }
 
@@ -106,6 +118,7 @@ function mergeConfigs(
     plex: envConfig.plex || fileConfig.plex,
     sabnzbd: envConfig.sabnzbd || fileConfig.sabnzbd,
     overseerr: envConfig.overseerr || fileConfig.overseerr,
+    tmdb: envConfig.tmdb || fileConfig.tmdb,
   };
 }
 
@@ -137,6 +150,10 @@ function validateConfig(config: Config): void {
 
   if (config.overseerr?.url && config.overseerr?.apiKey) {
     configuredServices.push("Overseerr");
+  }
+
+  if (config.tmdb?.apiKey) {
+    configuredServices.push("TMDB");
   }
 
   if (configuredServices.length === 0) {

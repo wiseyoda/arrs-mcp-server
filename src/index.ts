@@ -8,6 +8,7 @@ import { registerRadarrTools } from "./services/radarr/tools.js";
 import { registerPlexTools } from "./services/plex/tools.js";
 import { registerSabnzbdTools } from "./services/sabnzbd/tools.js";
 import { registerOverseerrTools } from "./services/overseerr/tools.js";
+import { registerTmdbTools } from "./services/tmdb/tools.js";
 import { registerSystemTools } from "./tools/index.js";
 
 const server = new McpServer({
@@ -34,6 +35,9 @@ async function main() {
   }
   if (config.overseerr) {
     registerOverseerrTools(server, config);
+  }
+  if (config.tmdb) {
+    registerTmdbTools(server, config);
   }
   registerSystemTools(server, config);
 
