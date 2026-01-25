@@ -19,7 +19,7 @@
 
 | Item | Convention | Example |
 |------|------------|---------|
-| Files | kebab-case | `sonarr-client.ts` |
+| Files | kebab-case | `downloads-status.ts` |
 | Classes | PascalCase | `SonarrClient` |
 | Functions | camelCase | `searchSeries` |
 | Constants | SCREAMING_SNAKE_CASE | `DEFAULT_TIMEOUT` |
@@ -33,37 +33,52 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-// Semantic tool (user-facing)
-server.registerTool(
+// Tool with parameters
+server.tool(
   "tv_search",
+  "Search for TV series by name. Returns matching shows.",
   {
-    description: "Search for TV series by name. Returns matching shows.",
-    inputSchema: {
-      query: z.string().describe("The series name to search for"),
-    },
+    query: z.string().describe("The series name to search for"),
   },
   async ({ query }) => {
     // Implementation
     return {
       content: [{ type: "text", text: result }],
     };
-  },
+  }
 );
 
-// Service-specific tool (admin/troubleshooting)
-server.registerTool(
+// Tool without parameters
+server.tool(
   "sonarr_queue",
-  {
-    description: "Get Sonarr download queue with progress, ETA, errors, and stuck imports.",
-    inputSchema: {},
-  },
+  "Get Sonarr download queue with progress, ETA, errors, and stuck imports.",
   async () => {
     // Implementation
     return {
       content: [{ type: "text", text: result }],
     };
-  },
+  }
 );
+```
+
+**IMPORTANT**: Use `z.coerce.number()` and `z.coerce.boolean()` for numeric and boolean parameters because MCP passes all values as strings:
+
+```typescript
+// CORRECT - handles MCP string-to-number conversion
+server.tool(
+  "tv_episodes",
+  "Get episodes for a series",
+  {
+    series_id: z.coerce.number().describe("Sonarr series ID"),
+    season: z.coerce.number().optional().describe("Filter to specific season"),
+  },
+  async ({ series_id, season }) => { /* ... */ }
+);
+
+// WRONG - will fail with "Expected number, received string"
+{
+  series_id: z.number().describe("Sonarr series ID"),  // Don't do this!
+}
 ```
 
 ### Service Module Pattern

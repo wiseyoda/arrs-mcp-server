@@ -96,23 +96,21 @@ arrs-mcp-server/
 │   ├── services/
 │   │   ├── sonarr/
 │   │   │   ├── client.ts     # API client
-│   │   │   ├── tools.ts      # MCP tools
-│   │   │   └── types.ts      # TypeScript types
-│   │   ├── radarr/
-│   │   │   ├── client.ts
-│   │   │   ├── tools.ts
-│   │   │   └── types.ts
-│   │   ├── plex/
-│   │   │   ├── client.ts
-│   │   │   ├── tools.ts
-│   │   │   └── types.ts
-│   │   └── sabnzbd/
-│   │       ├── client.ts
-│   │       ├── tools.ts
-│   │       └── types.ts
+│   │   │   ├── tools.ts      # MCP tool registrations
+│   │   │   ├── types.ts      # TypeScript types
+│   │   │   └── index.ts      # Exports
+│   │   ├── radarr/           # (Phase 0020)
+│   │   ├── plex/             # (Phase 0030)
+│   │   └── sabnzbd/          # (Phase 0040)
+│   ├── tools/                # Cross-service tools
+│   │   ├── index.ts          # Tool registration exports
+│   │   ├── system-health.ts  # Health check across services
+│   │   ├── media-help.ts     # Help system
+│   │   └── downloads-status.ts # Unified download status
 │   └── shared/
 │       ├── http.ts           # Shared HTTP utilities
 │       └── errors.ts         # Error handling
+├── dist/                     # Compiled output (gitignored)
 ├── config.json               # Local config (gitignored)
 ├── package.json
 ├── tsconfig.json
@@ -129,7 +127,7 @@ pnpm install
 pnpm build
 
 # Run (for testing)
-node build/index.js
+node dist/index.js
 
 # Development (with watch)
 pnpm dev
@@ -146,7 +144,7 @@ pnpm dev
   "mcpServers": {
     "arrs": {
       "command": "node",
-      "args": ["/path/to/arrs-mcp-server/build/index.js"]
+      "args": ["/path/to/arrs-mcp-server/dist/index.js"]
     }
   }
 }
@@ -161,7 +159,7 @@ pnpm dev
   "mcpServers": {
     "arrs": {
       "command": "node",
-      "args": ["/path/to/arrs-mcp-server/build/index.js"]
+      "args": ["/path/to/arrs-mcp-server/dist/index.js"]
     }
   }
 }
