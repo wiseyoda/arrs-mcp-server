@@ -6,6 +6,7 @@ import { loadConfig } from "./config.js";
 import { registerSonarrTools } from "./services/sonarr/tools.js";
 import { registerRadarrTools } from "./services/radarr/tools.js";
 import { registerPlexTools } from "./services/plex/tools.js";
+import { registerSabnzbdTools } from "./services/sabnzbd/tools.js";
 import { registerSystemTools } from "./tools/index.js";
 
 const server = new McpServer({
@@ -26,6 +27,9 @@ async function main() {
   }
   if (config.plex) {
     registerPlexTools(server, config);
+  }
+  if (config.sabnzbd) {
+    registerSabnzbdTools(server, config);
   }
   registerSystemTools(server, config);
 

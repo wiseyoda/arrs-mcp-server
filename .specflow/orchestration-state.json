@@ -5,7 +5,7 @@
     "name": "arrs-mcp-server",
     "path": "/Users/ppatterson/dev/arrs-mcp-server"
   },
-  "last_updated": "2026-01-25T06:54:20.502Z",
+  "last_updated": "2026-01-25T07:13:23.542Z",
   "orchestration": {
     "phase": {
       "id": null,
@@ -14,19 +14,19 @@
       "branch": null,
       "status": "not_started",
       "goals": [
-        "Build Plex API client with token-based authentication",
-        "Implement Plex semantic tools (library_list, library_search, library_watched)",
-        "Implement Plex admin tools (delete, unwatched, watched_old, recent, refresh)",
-        "Provide library-aware search queries",
-        "Enable watch status tracking and cleanup workflows",
-        "Update cross-service tools to include Plex"
+        "Build Sabnzbd API client with query-parameter authentication",
+        "Implement download semantic tools (queue, history, pause, resume, speed)",
+        "Implement admin tools (delete, failed, retry, priority, categories)",
+        "Enhance downloads_status with full Sabnzbd integration",
+        "Enable cross-service download tracking (what's in Sabnzbd for which *arr)",
+        "Complete the unified download management experience"
       ],
       "hasUserGate": false,
       "userGateStatus": "confirmed"
     },
     "next_phase": {
-      "number": "0040",
-      "name": "sabnzbd"
+      "number": "0050",
+      "name": "polish-extended"
     },
     "step": {
       "current": "design",
@@ -35,7 +35,7 @@
     },
     "analyze": {
       "iteration": null,
-      "completedAt": 1769321898
+      "completedAt": 1769324561
     },
     "implement": null,
     "progress": {
@@ -76,6 +76,15 @@
         "phase_name": "plex",
         "branch": "0030-plex",
         "completed_at": "2026-01-25T06:54:20.502Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0040",
+        "phase_name": "sabnzbd",
+        "branch": "0040-sabnzbd",
+        "completed_at": "2026-01-25T07:13:23.542Z",
         "tasks_completed": 0,
         "tasks_total": 0
       }

@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
 import { RadarrClient } from "../services/radarr/client.js";
+import { SabnzbdClient } from "../services/sabnzbd/client.js";
+import { formatEta, getSourceFromCategory } from "../services/sabnzbd/types.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
 interface DownloadItem {
@@ -105,8 +107,33 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
         }
       }
 
-      // Placeholder for future services
-      // Sabnzbd will be added in later phases
+      // Get Sabnzbd queue
+      if (config.sabnzbd) {
+        try {
+          const client = new SabnzbdClient(config.sabnzbd);
+          const queue = await client.getQueue();
+
+          for (const item of queue.slots) {
+            const progress = parseInt(item.percentage, 10) || 0;
+            const source = getSourceFromCategory(item.cat);
+
+            downloads.push({
+              title: item.filename,
+              progress,
+              eta: formatEta(item.timeleft),
+              status: item.status,
+              source: `Sabnzbd [${source}]`,
+            });
+          }
+
+          // Check if Sabnzbd is paused
+          if (queue.paused) {
+            issues.push("Sabnzbd: Downloads are paused");
+          }
+        } catch (error) {
+          issues.push(`Sabnzbd: ${formatErrorResponse(error)}`);
+        }
+      }
 
       if (downloads.length === 0 && issues.length === 0) {
         return {

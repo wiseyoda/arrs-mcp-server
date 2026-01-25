@@ -3,6 +3,8 @@ import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
 import { RadarrClient } from "../services/radarr/client.js";
 import { PlexClient } from "../services/plex/client.js";
+import { SabnzbdClient } from "../services/sabnzbd/client.js";
+import { formatSpeed } from "../services/sabnzbd/types.js";
 import { formatErrorResponse } from "../shared/errors.js";
 
 interface ServiceHealth {
@@ -159,8 +161,38 @@ export function registerSystemHealthTool(server: McpServer, config: Config): voi
         }
       }
 
-      // Placeholder for future services
-      // Sabnzbd will be added in later phases
+      // Check Sabnzbd
+      if (config.sabnzbd) {
+        try {
+          const client = new SabnzbdClient(config.sabnzbd);
+          const status = await client.getServerStatus();
+
+          const issues: string[] = [];
+
+          // Check if paused
+          if (status.paused) {
+            issues.push("Downloads paused");
+          }
+
+          // Add queue info
+          if (status.noofslots > 0) {
+            const speed = formatSpeed(status.speed);
+            issues.push(`${status.noofslots} items in queue, speed: ${speed}`);
+          }
+
+          services.push({
+            name: "Sabnzbd",
+            status: status.paused ? "warning" : "ok",
+            issues,
+          });
+        } catch (error) {
+          services.push({
+            name: "Sabnzbd",
+            status: "error",
+            issues: [formatErrorResponse(error)],
+          });
+        }
+      }
 
       if (services.length === 0) {
         return {
