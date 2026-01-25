@@ -1,0 +1,22 @@
+{
+  "sonarr": {
+    "url": "http://localhost:8989",
+    "apiKey": "your-sonarr-api-key"
+  },
+  "radarr": {
+    "url": "http://localhost:7878",
+    "apiKey": "your-radarr-api-key"
+  },
+  "radarr4k": {
+    "url": "http://localhost:7879",
+    "apiKey": "your-radarr4k-api-key"
+  },
+  "plex": {
+    "url": "http://localhost:32400",
+    "token": "your-plex-token"
+  },
+  "sabnzbd": {
+    "url": "http://localhost:8080",
+    "apiKey": "your-sabnzbd-api-key"
+  }
+}

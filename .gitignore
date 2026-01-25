@@ -1,1 +1,39 @@
+# SpecFlow
 .specflow/workflows/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Configuration (contains secrets)
+config.json
+.claude/settings.json
+.claude/settings.local.json
+.mcp.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
