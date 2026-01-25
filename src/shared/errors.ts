@@ -21,30 +21,40 @@ export class ArrsError extends Error {
 export class ApiError extends ArrsError {
   readonly statusCode: number;
   readonly responseBody: string;
+  readonly service?: string;
+  readonly endpoint?: string;
 
-  constructor(message: string, statusCode: number, responseBody: string = "") {
+  constructor(
+    message: string,
+    statusCode: number,
+    responseBody: string = "",
+    options?: { service?: string; endpoint?: string },
+  ) {
     super(message);
     this.name = "ApiError";
     this.statusCode = statusCode;
     this.responseBody = responseBody;
+    this.service = options?.service;
+    this.endpoint = options?.endpoint;
   }
 
   toUserMessage(): string {
+    const servicePrefix = this.service ? `[${this.service}] ` : "";
     switch (this.statusCode) {
       case 401:
-        return "Authentication failed. Please check your API key.";
+        return `${servicePrefix}Authentication failed. Please check your API key.`;
       case 403:
-        return "Access denied. Your API key may not have sufficient permissions.";
+        return `${servicePrefix}Access denied. Your API key may not have sufficient permissions.`;
       case 404:
-        return "The requested resource was not found.";
+        return `${servicePrefix}The requested resource was not found. Use the list tool to find valid IDs.`;
       case 429:
-        return "Too many requests. Please wait a moment and try again.";
+        return `${servicePrefix}Too many requests. Please wait a moment and try again.`;
       case 500:
       case 502:
       case 503:
-        return "The server is experiencing issues. Please try again later.";
+        return `${servicePrefix}The server is experiencing issues. Please try again later.`;
       default:
-        return `Request failed with status ${this.statusCode}: ${this.message}`;
+        return `${servicePrefix}Request failed with status ${this.statusCode}: ${this.message}`;
     }
   }
 }
@@ -54,24 +64,29 @@ export class ApiError extends ArrsError {
  */
 export class NetworkError extends ArrsError {
   readonly url: string;
+  readonly service?: string;
 
-  constructor(message: string, url: string) {
+  constructor(message: string, url: string, service?: string) {
     super(message);
     this.name = "NetworkError";
     this.url = url;
+    this.service = service;
   }
 
   toUserMessage(): string {
+    const servicePrefix = this.service ? `[${this.service}] ` : "";
     if (this.message.includes("timed out")) {
-      return "The request timed out. The server may be slow or unavailable.";
+      return `${servicePrefix}The request timed out. The server may be slow or unavailable.`;
     }
     if (this.message.includes("Cannot connect")) {
-      return `Cannot connect to the server. Please verify:\n` +
+      return (
+        `${servicePrefix}Cannot connect to the server. Please verify:\n` +
         `- The service is running\n` +
         `- The URL is correct\n` +
-        `- Your network connection is working`;
+        `- Your network connection is working`
+      );
     }
-    return `Network error: ${this.message}`;
+    return `${servicePrefix}Network error: ${this.message}`;
   }
 }
 
@@ -79,13 +94,25 @@ export class NetworkError extends ArrsError {
  * Error thrown when configuration is invalid or missing
  */
 export class ConfigError extends ArrsError {
-  constructor(message: string) {
+  readonly setting?: string;
+  readonly service?: string;
+
+  constructor(
+    message: string,
+    options?: { setting?: string; service?: string },
+  ) {
     super(message);
     this.name = "ConfigError";
+    this.setting = options?.setting;
+    this.service = options?.service;
   }
 
   toUserMessage(): string {
-    return `Configuration error: ${this.message}`;
+    const servicePrefix = this.service ? `[${this.service}] ` : "";
+    if (this.setting) {
+      return `${servicePrefix}Missing required setting: ${this.setting}. ${this.message}`;
+    }
+    return `${servicePrefix}Configuration error: ${this.message}`;
   }
 }
 

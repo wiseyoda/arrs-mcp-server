@@ -36,7 +36,13 @@ This allows inserting urgent work without renumbering existing phases.
 | 0020 | radarr | ✅ Complete | Movie tools work, 4K routing correct |
 | 0030 | plex | ✅ Complete | Library search and watch status work |
 | 0040 | sabnzbd | ✅ Complete | Download queue management works |
-| 0050  | polish-extended | ⬜ Not Started | All extended tools, cleanup workflows |
+| 0050 | polish-extended | ✅ Complete | All extended tools, cleanup workflows |
+| 0060 | overseerr | ⬜ Not Started | Request management, user management, discovery |
+| 0070 | discovery-engine | ⬜ Not Started | TMDB + Trakt + Letterboxd integration |
+| 0080 | state-foundation | ⬜ Not Started | SQLite database, audit log, undo, analytics |
+| 0090 | library-intelligence | ⬜ Not Started | Cross-service consistency, smart cleanup |
+| 0100 | telegram-notifications | ⬜ Not Started | Enhanced notifications via Telegram bot |
+| 0110 | testing-hardening | ⬜ Not Started | **USER GATE**: Tests, CI/CD, public release ready |
 
 **Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | **USER GATE** = Requires user verification
 
@@ -76,6 +82,12 @@ specflow phase list --complete
 | **Gate 3** | 0030  | Library search finds content, watch status correct, cleanup tools identify candidates |
 | **Gate 4** | 0040  | Download queue visible, pause/resume works, cross-references show *arr source |
 | **Gate 5** | 0050  | **USER GATE**: All core workflows work end-to-end, large libraries handled, error messages helpful |
+| **Gate 6** | 0060  | Overseerr requests viewable, approve/deny works, user management accessible |
+| **Gate 7** | 0070  | External API integrations work, collection completion finds missing items |
+| **Gate 8** | 0080  | SQLite stores actions, undo works, storage analytics accurate |
+| **Gate 9** | 0090  | Orphan detection works, bulk operations preview correctly, consistency checks accurate |
+| **Gate 10** | 0100 | Telegram notifications received for key events |
+| **Gate 11** | 0110 | **USER GATE**: All tests pass, CI/CD works, documentation complete for public release |
 
 ---
 
@@ -138,7 +150,11 @@ Services are configured in `config.json` or environment variables:
   "radarr": { "url": "...", "apiKey": "..." },
   "radarr4k": { "url": "...", "apiKey": "..." },
   "plex": { "url": "...", "token": "..." },
-  "sabnzbd": { "url": "...", "apiKey": "..." }
+  "sabnzbd": { "url": "...", "apiKey": "..." },
+  "overseerr": { "url": "...", "apiKey": "..." },
+  "tmdb": { "apiKey": "..." },
+  "trakt": { "clientId": "...", "clientSecret": "..." },
+  "telegram": { "botToken": "...", "chatId": "..." }
 }
 ```
 
@@ -146,7 +162,7 @@ Services are configured in `config.json` or environment variables:
 
 The project is complete when:
 
-1. All core tools for all 4 services work
+1. All core tools for all services work (Sonarr, Radarr, Plex, Sabnzbd, Overseerr)
 2. Natural language requests are handled smoothly
 3. Error messages are helpful
 4. Configuration is straightforward
@@ -156,6 +172,14 @@ The project is complete when:
    - "What's downloading?" → unified view with issues highlighted
    - "Something is stuck" → health check + fix workflow
    - "Get Inception in 4K" → correctly routes to Radarr4k
+   - "What requests are pending?" → shows Overseerr requests
+   - "What Marvel movies am I missing?" → collection completion
+7. External integrations work (TMDB, Trakt, Letterboxd)
+8. State persistence enables undo and analytics
+9. Library intelligence catches orphans and inconsistencies
+10. Telegram notifications keep user informed
+11. Comprehensive test suite passes
+12. Documentation ready for public release
 
 ---
 

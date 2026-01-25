@@ -15,12 +15,13 @@ import type {
 export class RadarrClient {
   private http: HttpClient;
 
-  constructor(config: ServiceConfig) {
+  constructor(config: ServiceConfig, serviceName = "Radarr") {
     this.http = new HttpClient({
       baseUrl: `${config.url}/api/v3`,
       headers: {
         "X-Api-Key": config.apiKey,
       },
+      serviceName,
     });
   }
 
@@ -41,17 +42,23 @@ export class RadarrClient {
     // Handle IMDB ID search - returns single object, wrap in array
     if (query.toLowerCase().startsWith("imdb:")) {
       const imdbId = query.substring(5).trim();
-      const result = await this.http.get<MovieLookup>(`/movie/lookup/imdb?imdbId=${encodeURIComponent(imdbId)}`);
+      const result = await this.http.get<MovieLookup>(
+        `/movie/lookup/imdb?imdbId=${encodeURIComponent(imdbId)}`,
+      );
       return result ? [result] : [];
     }
     // Handle TMDB ID search - returns single object, wrap in array
     if (query.toLowerCase().startsWith("tmdb:")) {
       const tmdbId = query.substring(5).trim();
-      const result = await this.http.get<MovieLookup>(`/movie/lookup/tmdb?tmdbId=${encodeURIComponent(tmdbId)}`);
+      const result = await this.http.get<MovieLookup>(
+        `/movie/lookup/tmdb?tmdbId=${encodeURIComponent(tmdbId)}`,
+      );
       return result ? [result] : [];
     }
     // Default text search - returns array
-    return this.http.get<MovieLookup[]>(`/movie/lookup?term=${encodeURIComponent(query)}`);
+    return this.http.get<MovieLookup[]>(
+      `/movie/lookup?term=${encodeURIComponent(query)}`,
+    );
   }
 
   async getAllMovies(): Promise<Movie[]> {
@@ -66,7 +73,11 @@ export class RadarrClient {
     return this.http.post<Movie>("/movie", request);
   }
 
-  async deleteMovie(id: number, deleteFiles: boolean = false, addImportExclusion: boolean = false): Promise<void> {
+  async deleteMovie(
+    id: number,
+    deleteFiles: boolean = false,
+    addImportExclusion: boolean = false,
+  ): Promise<void> {
     const params = new URLSearchParams();
     params.set("deleteFiles", String(deleteFiles));
     params.set("addImportExclusion", String(addImportExclusion));
@@ -78,10 +89,10 @@ export class RadarrClient {
   async getQueue(
     page: number = 1,
     pageSize: number = 100,
-    includeUnknownMovieItems: boolean = true
+    includeUnknownMovieItems: boolean = true,
   ): Promise<QueuePage> {
     return this.http.get<QueuePage>(
-      `/queue?page=${page}&pageSize=${pageSize}&includeUnknownMovieItems=${includeUnknownMovieItems}`
+      `/queue?page=${page}&pageSize=${pageSize}&includeUnknownMovieItems=${includeUnknownMovieItems}`,
     );
   }
 
@@ -96,7 +107,7 @@ export class RadarrClient {
       removeFromClient?: boolean;
       blocklist?: boolean;
       skipRedownload?: boolean;
-    } = {}
+    } = {},
   ): Promise<void> {
     const params = new URLSearchParams();
     if (options.removeFromClient !== undefined) {
@@ -123,7 +134,10 @@ export class RadarrClient {
 
   // Commands
 
-  async executeCommand(name: string, body: Record<string, unknown> = {}): Promise<Command> {
+  async executeCommand(
+    name: string,
+    body: Record<string, unknown> = {},
+  ): Promise<Command> {
     return this.http.post<Command>("/command", { name, ...body });
   }
 
@@ -175,7 +189,33 @@ export class RadarrClient {
         item.trackedDownloadState === "importPending" ||
         item.trackedDownloadState === "importBlocked" ||
         item.trackedDownloadStatus === "warning" ||
-        item.trackedDownloadStatus === "error"
+        item.trackedDownloadStatus === "error",
     );
+  }
+
+  // Extended Tools (Phase 0050)
+
+  /**
+   * Rename movie files using Radarr's naming rules.
+   * This triggers the RenameFiles command for the specified movie.
+   */
+  async renameMovie(movieId: number): Promise<Command> {
+    return this.executeCommand("RenameFiles", { movieId });
+  }
+
+  /**
+   * Get movie recommendations from Radarr's discovery/import lists.
+   * Returns movies that Radarr recommends based on your library.
+   */
+  async getDiscovery(): Promise<MovieLookup[]> {
+    // Radarr uses /movie/discover for recommendations
+    // This endpoint returns movies recommended based on your existing library
+    try {
+      return await this.http.get<MovieLookup[]>("/movie/discover");
+    } catch {
+      // Fallback: some Radarr versions may not have /discover endpoint
+      // Return empty array if not available
+      return [];
+    }
   }
 }

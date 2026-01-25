@@ -66,7 +66,8 @@ function getEnvConfig(): Partial<Config> {
 }
 
 function getFileConfig(): Partial<Config> {
-  const configPath = process.env.CONFIG_PATH || join(process.cwd(), "config.json");
+  const configPath =
+    process.env.CONFIG_PATH || join(process.cwd(), "config.json");
 
   if (!existsSync(configPath)) {
     return {};
@@ -76,12 +77,18 @@ function getFileConfig(): Partial<Config> {
     const content = readFileSync(configPath, "utf-8");
     return JSON.parse(content) as Partial<Config>;
   } catch (error) {
-    console.error(`Warning: Failed to parse config file at ${configPath}:`, error);
+    console.error(
+      `Warning: Failed to parse config file at ${configPath}:`,
+      error,
+    );
     return {};
   }
 }
 
-function mergeConfigs(fileConfig: Partial<Config>, envConfig: Partial<Config>): Config {
+function mergeConfigs(
+  fileConfig: Partial<Config>,
+  envConfig: Partial<Config>,
+): Config {
   // Environment variables take precedence over file config
   return {
     sonarr: envConfig.sonarr || fileConfig.sonarr,
@@ -122,12 +129,15 @@ function validateConfig(config: Config): void {
     throw new Error(
       "No services configured. Please set environment variables " +
         "(SONARR_URL, SONARR_API_KEY, etc.) or create a config.json file. " +
-        "See config.example.json for the expected format."
+        "See config.example.json for the expected format.",
     );
   }
 
   if (missingServices.length > 0) {
-    console.error("Warning: Some services have incomplete configuration:", missingServices);
+    console.error(
+      "Warning: Some services have incomplete configuration:",
+      missingServices,
+    );
   }
 
   console.error("Configured services:", configuredServices.join(", "));

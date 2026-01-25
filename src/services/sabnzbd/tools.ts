@@ -39,7 +39,8 @@ function formatHistorySlot(item: HistorySlot): string {
   const size = formatSize(item.bytes);
   const source = getSourceFromCategory(item.category);
   const completedDate = new Date(item.completed * 1000).toLocaleString();
-  const failed = item.status === "Failed" ? `\n  Error: ${item.fail_message}` : "";
+  const failed =
+    item.status === "Failed" ? `\n  Error: ${item.fail_message}` : "";
 
   return (
     `${item.name}\n` +
@@ -102,7 +103,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // downloads_history - View download history
@@ -139,7 +140,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // downloads_pause - Pause all downloads
@@ -198,14 +199,22 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
         .number()
         .optional()
         .describe("Speed limit in MB/s (e.g., 10 for 10 MB/s)"),
-      unlimited: z.boolean().optional().describe("Set to true to remove speed limit"),
+      unlimited: z
+        .boolean()
+        .optional()
+        .describe("Set to true to remove speed limit"),
     },
     async ({ speed, unlimited }) => {
       try {
         if (unlimited) {
           await client.setSpeedLimit(0);
           return {
-            content: [{ type: "text", text: "Speed limit removed. Downloading at full speed." }],
+            content: [
+              {
+                type: "text",
+                text: "Speed limit removed. Downloading at full speed.",
+              },
+            ],
           };
         }
 
@@ -234,7 +243,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // ============================================================
@@ -246,7 +255,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_delete",
     "Remove an item from the Sabnzbd download queue",
     {
-      nzo_id: z.string().describe("The nzo_id of the item to delete (from downloads_queue)"),
+      nzo_id: z
+        .string()
+        .describe("The nzo_id of the item to delete (from downloads_queue)"),
     },
     async ({ nzo_id }) => {
       try {
@@ -257,7 +268,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
         await client.deleteItem(nzo_id);
 
         return {
-          content: [{ type: "text", text: `Deleted "${itemName}" from queue.` }],
+          content: [
+            { type: "text", text: `Deleted "${itemName}" from queue.` },
+          ],
         };
       } catch (error) {
         return {
@@ -265,7 +278,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_failed - List failed downloads
@@ -294,7 +307,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_retry - Retry a failed download
@@ -302,7 +315,11 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_retry",
     "Retry a failed download from history",
     {
-      nzo_id: z.string().describe("The nzo_id of the failed item to retry (from sabnzbd_failed)"),
+      nzo_id: z
+        .string()
+        .describe(
+          "The nzo_id of the failed item to retry (from sabnzbd_failed)",
+        ),
     },
     async ({ nzo_id }) => {
       try {
@@ -310,7 +327,12 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
         const item = await client.findHistoryItem(nzo_id);
         if (!item) {
           return {
-            content: [{ type: "text", text: `Could not find item with ID ${nzo_id} in history.` }],
+            content: [
+              {
+                type: "text",
+                text: `Could not find item with ID ${nzo_id} in history.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -330,7 +352,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
         await client.retry(nzo_id);
 
         return {
-          content: [{ type: "text", text: `Retrying "${item.name}". Added to queue.` }],
+          content: [
+            { type: "text", text: `Retrying "${item.name}". Added to queue.` },
+          ],
         };
       } catch (error) {
         return {
@@ -338,7 +362,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_priority - Change queue item priority
@@ -346,10 +370,16 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_priority",
     "Change the priority of a queue item (move to top/bottom or set priority level)",
     {
-      nzo_id: z.string().describe("The nzo_id of the item to prioritize (from downloads_queue)"),
+      nzo_id: z
+        .string()
+        .describe(
+          "The nzo_id of the item to prioritize (from downloads_queue)",
+        ),
       position: z
         .enum(["top", "bottom", "high", "normal", "low"])
-        .describe("Where to move the item: top, bottom, or priority level (high/normal/low)"),
+        .describe(
+          "Where to move the item: top, bottom, or priority level (high/normal/low)",
+        ),
     },
     async ({ nzo_id, position }) => {
       try {
@@ -371,7 +401,12 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
         }
 
         return {
-          content: [{ type: "text", text: `Moved "${itemName}" to ${position} of queue.` }],
+          content: [
+            {
+              type: "text",
+              text: `Moved "${itemName}" to ${position} of queue.`,
+            },
+          ],
         };
       } catch (error) {
         return {
@@ -379,7 +414,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_pause_item - Pause a specific item
@@ -387,7 +422,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_pause_item",
     "Pause a specific item in the download queue",
     {
-      nzo_id: z.string().describe("The nzo_id of the item to pause (from downloads_queue)"),
+      nzo_id: z
+        .string()
+        .describe("The nzo_id of the item to pause (from downloads_queue)"),
     },
     async ({ nzo_id }) => {
       try {
@@ -405,7 +442,7 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_resume_item - Resume a specific item
@@ -413,7 +450,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_resume_item",
     "Resume a specific paused item in the download queue",
     {
-      nzo_id: z.string().describe("The nzo_id of the item to resume (from downloads_queue)"),
+      nzo_id: z
+        .string()
+        .describe("The nzo_id of the item to resume (from downloads_queue)"),
     },
     async ({ nzo_id }) => {
       try {
@@ -431,34 +470,119 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // sabnzbd_categories - List categories
-  server.tool("sabnzbd_categories", "List configured Sabnzbd download categories", async () => {
-    try {
-      const categories = await client.getCategories();
+  server.tool(
+    "sabnzbd_categories",
+    "List configured Sabnzbd download categories",
+    async () => {
+      try {
+        const categories = await client.getCategories();
 
-      if (categories.length === 0) {
+        if (categories.length === 0) {
+          return {
+            content: [{ type: "text", text: "No categories configured." }],
+          };
+        }
+
+        let output = `Download Categories (${categories.length}):\n\n`;
+        for (const cat of categories) {
+          const source = getSourceFromCategory(cat);
+          output += `  - ${cat}${source !== "unknown" ? ` → ${source}` : ""}\n`;
+        }
+
         return {
-          content: [{ type: "text", text: "No categories configured." }],
+          content: [{ type: "text", text: output }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
         };
       }
+    },
+  );
 
-      let output = `Download Categories (${categories.length}):\n\n`;
-      for (const cat of categories) {
-        const source = getSourceFromCategory(cat);
-        output += `  - ${cat}${source !== "unknown" ? ` → ${source}` : ""}\n`;
+  // ============================================================
+  // Extended Tools (Phase 0050)
+  // ============================================================
+
+  // sabnzbd_quota - Show quota status
+  server.tool(
+    "sabnzbd_quota",
+    "Show Sabnzbd quota usage and limits. Quota must be enabled in Sabnzbd settings.",
+    async () => {
+      try {
+        const quota = await client.getQuota();
+
+        if (!quota.have_quota) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Quota is not enabled in Sabnzbd. Enable it in Settings → General → Quota.",
+              },
+            ],
+          };
+        }
+
+        const usedMb = parseFloat(quota.quota) - parseFloat(quota.left_quota);
+        const totalMb = parseFloat(quota.quota);
+        const leftMb = parseFloat(quota.left_quota);
+        const usagePercent =
+          totalMb > 0 ? ((usedMb / totalMb) * 100).toFixed(1) : "0";
+
+        let output = `Quota Status:\n\n`;
+        output += `  Used: ${formatMb(String(usedMb))} / ${formatMb(String(totalMb))} (${usagePercent}%)\n`;
+        output += `  Remaining: ${formatMb(String(leftMb))}\n`;
+
+        // Add warning if low on quota
+        if (leftMb < totalMb * 0.1) {
+          output += `\n⚠️ Warning: Less than 10% quota remaining`;
+        }
+
+        return {
+          content: [{ type: "text", text: output }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
+        };
       }
+    },
+  );
 
-      return {
-        content: [{ type: "text", text: output }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: formatErrorResponse(error) }],
-        isError: true,
-      };
-    }
-  });
+  // sabnzbd_warnings - Show system warnings
+  server.tool(
+    "sabnzbd_warnings",
+    "Show Sabnzbd system warnings and issues that need attention",
+    async () => {
+      try {
+        const warnings = await client.getWarnings();
+
+        if (warnings.length === 0) {
+          return {
+            content: [{ type: "text", text: "No system warnings." }],
+          };
+        }
+
+        let output = `System Warnings (${warnings.length}):\n\n`;
+        for (let i = 0; i < warnings.length; i++) {
+          output += `${i + 1}. ${warnings[i]}\n`;
+        }
+
+        return {
+          content: [{ type: "text", text: output }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
 }

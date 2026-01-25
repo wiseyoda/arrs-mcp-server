@@ -34,6 +34,10 @@ export interface QueueInfo {
   timeleft: string;
   eta: string;
   slots: QueueSlot[];
+  // Quota fields (optional, present when quota is enabled)
+  have_quota?: boolean;
+  quota?: string;
+  left_quota?: string;
 }
 
 /**
@@ -51,7 +55,14 @@ export interface QueueSlot {
   sizeleft: string;
   percentage: string;
   mbmissing: string;
-  status: "Downloading" | "Queued" | "Paused" | "Verifying" | "Extracting" | "Repairing" | "Fetching";
+  status:
+    | "Downloading"
+    | "Queued"
+    | "Paused"
+    | "Verifying"
+    | "Extracting"
+    | "Repairing"
+    | "Fetching";
   timeleft: string;
   eta: string;
   avg_age: string;
@@ -85,7 +96,13 @@ export interface HistorySlot {
   category: string;
   pp: string;
   script: string;
-  status: "Completed" | "Failed" | "Queued" | "Extracting" | "Repairing" | "Verifying";
+  status:
+    | "Completed"
+    | "Failed"
+    | "Queued"
+    | "Extracting"
+    | "Repairing"
+    | "Verifying";
   fail_message: string;
   bytes: number;
   size: string;
@@ -162,6 +179,22 @@ export interface PriorityResponse {
 }
 
 /**
+ * Warnings response from Sabnzbd
+ */
+export interface WarningsResponse {
+  warnings: string[];
+}
+
+/**
+ * Quota information (extracted from queue response)
+ */
+export interface QuotaInfo {
+  have_quota: boolean;
+  quota: string;
+  left_quota: string;
+}
+
+/**
  * Category-to-source mapping for cross-service tracking
  */
 export const CATEGORY_SOURCE_MAP: Record<string, string> = {
@@ -213,7 +246,8 @@ export function formatEta(timeleft: string): string {
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 

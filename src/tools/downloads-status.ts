@@ -15,7 +15,10 @@ interface DownloadItem {
   issues?: string[];
 }
 
-export function registerDownloadsStatusTool(server: McpServer, config: Config): void {
+export function registerDownloadsStatusTool(
+  server: McpServer,
+  config: Config,
+): void {
   server.tool(
     "downloads_status",
     "Get unified download status across all services (Sonarr, Radarr, Sabnzbd)",
@@ -30,7 +33,10 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
           const queue = await client.getQueue();
 
           for (const item of queue.records) {
-            const progress = item.size > 0 ? Math.round((1 - item.sizeleft / item.size) * 100) : 0;
+            const progress =
+              item.size > 0
+                ? Math.round((1 - item.sizeleft / item.size) * 100)
+                : 0;
             const itemIssues = item.statusMessages?.map((m) => m.title);
 
             downloads.push({
@@ -39,11 +45,17 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
               eta: item.timeleft || "unknown",
               status: item.trackedDownloadStatus || item.status,
               source: "Sonarr",
-              issues: itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
+              issues:
+                itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
             });
 
-            if (item.trackedDownloadStatus === "warning" || item.trackedDownloadStatus === "error") {
-              issues.push(`Sonarr: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`);
+            if (
+              item.trackedDownloadStatus === "warning" ||
+              item.trackedDownloadStatus === "error"
+            ) {
+              issues.push(
+                `Sonarr: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`,
+              );
             }
           }
         } catch (error) {
@@ -54,11 +66,14 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
       // Get Radarr queue
       if (config.radarr) {
         try {
-          const client = new RadarrClient(config.radarr);
+          const client = new RadarrClient(config.radarr, "Radarr");
           const queue = await client.getQueue();
 
           for (const item of queue.records) {
-            const progress = item.size > 0 ? Math.round((1 - item.sizeleft / item.size) * 100) : 0;
+            const progress =
+              item.size > 0
+                ? Math.round((1 - item.sizeleft / item.size) * 100)
+                : 0;
             const itemIssues = item.statusMessages?.map((m) => m.title);
 
             downloads.push({
@@ -67,11 +82,17 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
               eta: item.timeleft || "unknown",
               status: item.trackedDownloadStatus || item.status,
               source: "Radarr",
-              issues: itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
+              issues:
+                itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
             });
 
-            if (item.trackedDownloadStatus === "warning" || item.trackedDownloadStatus === "error") {
-              issues.push(`Radarr: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`);
+            if (
+              item.trackedDownloadStatus === "warning" ||
+              item.trackedDownloadStatus === "error"
+            ) {
+              issues.push(
+                `Radarr: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`,
+              );
             }
           }
         } catch (error) {
@@ -82,11 +103,14 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
       // Get Radarr4K queue
       if (config.radarr4k) {
         try {
-          const client = new RadarrClient(config.radarr4k);
+          const client = new RadarrClient(config.radarr4k, "Radarr4K");
           const queue = await client.getQueue();
 
           for (const item of queue.records) {
-            const progress = item.size > 0 ? Math.round((1 - item.sizeleft / item.size) * 100) : 0;
+            const progress =
+              item.size > 0
+                ? Math.round((1 - item.sizeleft / item.size) * 100)
+                : 0;
             const itemIssues = item.statusMessages?.map((m) => m.title);
 
             downloads.push({
@@ -95,11 +119,17 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
               eta: item.timeleft || "unknown",
               status: item.trackedDownloadStatus || item.status,
               source: "Radarr4K",
-              issues: itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
+              issues:
+                itemIssues && itemIssues.length > 0 ? itemIssues : undefined,
             });
 
-            if (item.trackedDownloadStatus === "warning" || item.trackedDownloadStatus === "error") {
-              issues.push(`Radarr4K: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`);
+            if (
+              item.trackedDownloadStatus === "warning" ||
+              item.trackedDownloadStatus === "error"
+            ) {
+              issues.push(
+                `Radarr4K: ${item.title} - ${itemIssues?.join(", ") || "has issues"}`,
+              );
             }
           }
         } catch (error) {
@@ -166,6 +196,6 @@ export function registerDownloadsStatusTool(server: McpServer, config: Config): 
       return {
         content: [{ type: "text", text: output.trim() }],
       };
-    }
+    },
   );
 }

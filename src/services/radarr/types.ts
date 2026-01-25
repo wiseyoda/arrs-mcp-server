@@ -93,7 +93,13 @@ export interface QueueItem {
   estimatedCompletionTime?: string;
   status: string;
   trackedDownloadStatus?: "ok" | "warning" | "error";
-  trackedDownloadState?: "downloading" | "importPending" | "importBlocked" | "importing" | "imported" | "failedPending";
+  trackedDownloadState?:
+    | "downloading"
+    | "importPending"
+    | "importBlocked"
+    | "importing"
+    | "imported"
+    | "failedPending";
   statusMessages: StatusMessage[];
   downloadId?: string;
   protocol: "usenet" | "torrent";

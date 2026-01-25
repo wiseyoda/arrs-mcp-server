@@ -20,7 +20,24 @@ export function registerPlexTools(server: McpServer, config: Config): void {
   server.tool(
     "library_list",
     "List all Plex libraries (Movies, TV Shows, etc.)",
-    async () => {
+    {
+      // Pagination (for consistency with other list tools)
+      limit: z.coerce
+        .number()
+        .optional()
+        .default(100)
+        .describe("Maximum results to return. Default: 100"),
+      offset: z.coerce
+        .number()
+        .optional()
+        .default(0)
+        .describe("Skip this many results for pagination. Default: 0"),
+      summary: z.coerce
+        .boolean()
+        .optional()
+        .describe("Only return counts without listing items"),
+    },
+    async ({ limit, offset, summary }) => {
       try {
         const libraries = await client.getLibraries();
 
@@ -30,15 +47,56 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
-        const formatted = libraries
+        // Summary mode
+        if (summary) {
+          const movieLibs = libraries.filter((l) => l.type === "movie").length;
+          const showLibs = libraries.filter((l) => l.type === "show").length;
+          const otherLibs = libraries.length - movieLibs - showLibs;
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Library Summary:\n` +
+                  `  Total: ${libraries.length}\n` +
+                  `  Movie Libraries: ${movieLibs}\n` +
+                  `  TV Libraries: ${showLibs}\n` +
+                  `  Other: ${otherLibs}`,
+              },
+            ],
+          };
+        }
+
+        // Apply pagination
+        const totalCount = libraries.length;
+        const effectiveOffset = offset || 0;
+        const effectiveLimit = limit || 100;
+        const paginatedLibraries = libraries.slice(
+          effectiveOffset,
+          effectiveOffset + effectiveLimit,
+        );
+
+        const formatted = paginatedLibraries
           .map((lib) => `[${lib.key}] ${lib.title} (${lib.type})`)
           .join("\n");
+
+        let paginationNote = "";
+        if (effectiveOffset > 0 || paginatedLibraries.length < totalCount) {
+          paginationNote = ` (showing ${effectiveOffset + 1}-${effectiveOffset + paginatedLibraries.length} of ${totalCount})`;
+        }
+
+        // Warn if results exceed 500
+        const warnLargeResult =
+          totalCount > 500 && effectiveLimit >= totalCount;
+        const warningNote = warnLargeResult
+          ? "\n\nNote: Large result set. Consider using limit/offset for pagination."
+          : "";
 
         return {
           content: [
             {
               type: "text",
-              text: `${libraries.length} libraries:\n\n${formatted}`,
+              text: `${paginatedLibraries.length} libraries${paginationNote}:\n\n${formatted}${warningNote}`,
             },
           ],
         };
@@ -48,7 +106,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // library_search - Search across libraries
@@ -60,14 +118,26 @@ export function registerPlexTools(server: McpServer, config: Config): void {
       library: z
         .string()
         .optional()
-        .describe("Filter to specific library name (e.g., 'Movies', 'TV Shows')"),
+        .describe(
+          "Filter to specific library name (e.g., 'Movies', 'TV Shows')",
+        ),
+      // Pagination
       limit: z.coerce
         .number()
         .optional()
         .default(20)
         .describe("Maximum results to return. Default: 20"),
+      offset: z.coerce
+        .number()
+        .optional()
+        .default(0)
+        .describe("Skip this many results for pagination. Default: 0"),
+      summary: z.coerce
+        .boolean()
+        .optional()
+        .describe("Only return counts without listing items"),
     },
-    async ({ query, library, limit }) => {
+    async ({ query, library, limit, offset, summary }) => {
       try {
         // If library specified, search that library only
         if (library) {
@@ -90,31 +160,66 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           if (items.length === 0) {
             return {
               content: [
-                { type: "text", text: `No results for "${query}" in ${lib.title}.` },
+                {
+                  type: "text",
+                  text: `No results for "${query}" in ${lib.title}.`,
+                },
               ],
             };
           }
 
-          const limited = items.slice(0, limit);
-          const formatted = limited
+          const totalCount = items.length;
+
+          // Summary mode
+          if (summary) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Search Summary for "${query}" in ${lib.title}:\n  Results: ${totalCount}`,
+                },
+              ],
+            };
+          }
+
+          // Apply pagination
+          const effectiveOffset = offset || 0;
+          const effectiveLimit = limit || 20;
+          const paginated = items.slice(
+            effectiveOffset,
+            effectiveOffset + effectiveLimit,
+          );
+
+          const formatted = paginated
             .map((item) => {
               const info = client.parseMediaItem(item, lib.title);
               const watchStatus = info.watched
                 ? `Watched ${info.viewCount}x`
                 : "Unwatched";
-              const size = info.sizeBytes ? ` - ${client.formatSize(info.sizeBytes)}` : "";
+              const size = info.sizeBytes
+                ? ` - ${client.formatSize(info.sizeBytes)}`
+                : "";
               return `[${info.ratingKey}] ${info.title} (${info.year || "N/A"}) - ${watchStatus}${size}`;
             })
             .join("\n");
 
-          const moreText =
-            items.length > limit ? `\n\n... and ${items.length - limit} more` : "";
+          let paginationNote = "";
+          if (effectiveOffset > 0 || paginated.length < totalCount) {
+            paginationNote = ` (showing ${effectiveOffset + 1}-${effectiveOffset + paginated.length} of ${totalCount})`;
+          }
+
+          // Warn if results exceed 500
+          const warnLargeResult =
+            totalCount > 500 && effectiveLimit >= totalCount;
+          const warningNote = warnLargeResult
+            ? "\n\nNote: Large result set. Consider using limit/offset for pagination."
+            : "";
 
           return {
             content: [
               {
                 type: "text",
-                text: `Found ${items.length} results in ${lib.title}:\n\n${formatted}${moreText}`,
+                text: `Found ${totalCount} results in ${lib.title}${paginationNote}:\n\n${formatted}${warningNote}`,
               },
             ],
           };
@@ -125,21 +230,73 @@ export function registerPlexTools(server: McpServer, config: Config): void {
 
         if (results.size === 0) {
           return {
-            content: [{ type: "text", text: `No results for "${query}" in any library.` }],
+            content: [
+              {
+                type: "text",
+                text: `No results for "${query}" in any library.`,
+              },
+            ],
           };
         }
 
-        let totalCount = 0;
-        const sections: string[] = [];
-
+        // Flatten all results into a single array for pagination
+        const allItems: Array<{
+          hubTitle: string;
+          item: typeof results extends Map<string, infer V>
+            ? V extends Array<infer I>
+              ? I
+              : never
+            : never;
+        }> = [];
         for (const [hubTitle, items] of results) {
-          totalCount += items.length;
-          const limited = items.slice(0, Math.ceil(limit / results.size));
-          const formatted = limited
-            .map((item) => {
+          for (const item of items) {
+            allItems.push({ hubTitle, item });
+          }
+        }
+
+        const totalCount = allItems.length;
+
+        // Summary mode
+        if (summary) {
+          const hubCounts: string[] = [];
+          for (const [hubTitle, items] of results) {
+            hubCounts.push(`  ${hubTitle}: ${items.length}`);
+          }
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Search Summary for "${query}":\n  Total: ${totalCount}\n${hubCounts.join("\n")}`,
+              },
+            ],
+          };
+        }
+
+        // Apply pagination
+        const effectiveOffset = offset || 0;
+        const effectiveLimit = limit || 20;
+        const paginated = allItems.slice(
+          effectiveOffset,
+          effectiveOffset + effectiveLimit,
+        );
+
+        // Group paginated results by hub for display
+        const hubGroups = new Map<string, typeof allItems>();
+        for (const { hubTitle, item } of paginated) {
+          const existing = hubGroups.get(hubTitle) || [];
+          existing.push({ hubTitle, item });
+          hubGroups.set(hubTitle, existing);
+        }
+
+        const sections: string[] = [];
+        for (const [hubTitle, groupItems] of hubGroups) {
+          const formatted = groupItems
+            .map(({ item }) => {
               const year = item.year ? ` (${item.year})` : "";
               const watchStatus =
-                (item.viewCount || 0) > 0 ? `Watched ${item.viewCount}x` : "Unwatched";
+                (item.viewCount || 0) > 0
+                  ? `Watched ${item.viewCount}x`
+                  : "Unwatched";
               return `  [${item.ratingKey}] ${item.title}${year} - ${watchStatus}`;
             })
             .join("\n");
@@ -147,11 +304,23 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           sections.push(`${hubTitle}:\n${formatted}`);
         }
 
+        let paginationNote = "";
+        if (effectiveOffset > 0 || paginated.length < totalCount) {
+          paginationNote = ` (showing ${effectiveOffset + 1}-${effectiveOffset + paginated.length} of ${totalCount})`;
+        }
+
+        // Warn if results exceed 500
+        const warnLargeResult =
+          totalCount > 500 && effectiveLimit >= totalCount;
+        const warningNote = warnLargeResult
+          ? "\n\nNote: Large result set. Consider using limit/offset for pagination."
+          : "";
+
         return {
           content: [
             {
               type: "text",
-              text: `Found ${totalCount} results:\n\n${sections.join("\n\n")}`,
+              text: `Found ${totalCount} results${paginationNote}:\n\n${sections.join("\n\n")}${warningNote}`,
             },
           ],
         };
@@ -161,7 +330,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // library_watched - Get watch status for library items
@@ -198,13 +367,17 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
-        const { items, totalSize } = await client.getLibraryItems(lib.key, { size: 500 });
+        const { items, totalSize } = await client.getLibraryItems(lib.key, {
+          size: 500,
+        });
 
         let filtered = items;
         if (filter === "watched") {
           filtered = items.filter((item) => (item.viewCount || 0) > 0);
         } else if (filter === "unwatched") {
-          filtered = items.filter((item) => !item.viewCount || item.viewCount === 0);
+          filtered = items.filter(
+            (item) => !item.viewCount || item.viewCount === 0,
+          );
         }
 
         if (filtered.length === 0) {
@@ -249,7 +422,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // library_list_movies - List movies with filtering, sorting, display options
@@ -261,46 +434,111 @@ export function registerPlexTools(server: McpServer, config: Config): void {
       library: z
         .string()
         .optional()
-        .describe("Filter to specific movie library (e.g., 'Movies', 'Movies (4K)')"),
-      genre: z.string().optional().describe("Filter by genre (partial match, e.g., 'action')"),
+        .describe(
+          "Filter to specific movie library (e.g., 'Movies', 'Movies (4K)')",
+        ),
+      genre: z
+        .string()
+        .optional()
+        .describe("Filter by genre (partial match, e.g., 'action')"),
       content_rating: z
         .string()
         .optional()
         .describe("Filter by content rating (e.g., 'PG-13', 'R')"),
       year: z.coerce.number().optional().describe("Filter by release year"),
-      year_min: z.coerce.number().optional().describe("Filter by minimum release year"),
-      year_max: z.coerce.number().optional().describe("Filter by maximum release year"),
-      country: z.string().optional().describe("Filter by country (partial match)"),
-      studio: z.string().optional().describe("Filter by studio (partial match)"),
-      director: z.string().optional().describe("Filter by director name (partial match)"),
-      actor: z.string().optional().describe("Filter by actor name (partial match)"),
+      year_min: z.coerce
+        .number()
+        .optional()
+        .describe("Filter by minimum release year"),
+      year_max: z.coerce
+        .number()
+        .optional()
+        .describe("Filter by maximum release year"),
+      country: z
+        .string()
+        .optional()
+        .describe("Filter by country (partial match)"),
+      studio: z
+        .string()
+        .optional()
+        .describe("Filter by studio (partial match)"),
+      director: z
+        .string()
+        .optional()
+        .describe("Filter by director name (partial match)"),
+      actor: z
+        .string()
+        .optional()
+        .describe("Filter by actor name (partial match)"),
       resolution: z
         .enum(["4k", "1080", "720", "sd"])
         .optional()
         .describe("Filter by video resolution"),
-      watched_only: z.coerce.boolean().optional().describe("Only show watched movies"),
-      unwatched_only: z.coerce.boolean().optional().describe("Only show unwatched movies"),
+      watched_only: z.coerce
+        .boolean()
+        .optional()
+        .describe("Only show watched movies"),
+      unwatched_only: z.coerce
+        .boolean()
+        .optional()
+        .describe("Only show unwatched movies"),
       watched_since_days: z.coerce
         .number()
         .optional()
         .describe("Only movies watched in the last N days"),
       // Sorting
       sort: z
-        .enum(["title", "rating", "audience_rating", "year", "added", "watched", "size", "duration"])
+        .enum([
+          "title",
+          "rating",
+          "audience_rating",
+          "year",
+          "added",
+          "watched",
+          "size",
+          "duration",
+        ])
         .optional()
         .describe(
-          "Sort by: title (A-Z), rating (critics, highest first), audience_rating (highest first), year (newest first), added (newest first), watched (recently watched first), size (largest first), duration (longest first). Default: title"
+          "Sort by: title (A-Z), rating (critics, highest first), audience_rating (highest first), year (newest first), added (newest first), watched (recently watched first), size (largest first), duration (longest first). Default: title",
         ),
-      limit: z.coerce.number().optional().describe("Limit number of results (e.g., top 10)"),
+      limit: z.coerce
+        .number()
+        .optional()
+        .describe("Limit number of results (e.g., top 10)"),
       // Display options
-      show_rating: z.coerce.boolean().optional().describe("Include critic rating (RT) in output"),
-      show_audience_rating: z.coerce.boolean().optional().describe("Include audience rating in output"),
-      show_genre: z.coerce.boolean().optional().describe("Include genres in output"),
-      show_director: z.coerce.boolean().optional().describe("Include director in output"),
-      show_runtime: z.coerce.boolean().optional().describe("Include runtime in output"),
-      show_size: z.coerce.boolean().optional().describe("Include file size in output"),
-      show_resolution: z.coerce.boolean().optional().describe("Include video resolution in output"),
-      show_added: z.coerce.boolean().optional().describe("Include date added in output"),
+      show_rating: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include critic rating (RT) in output"),
+      show_audience_rating: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include audience rating in output"),
+      show_genre: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include genres in output"),
+      show_director: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include director in output"),
+      show_runtime: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include runtime in output"),
+      show_size: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include file size in output"),
+      show_resolution: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include video resolution in output"),
+      show_added: z.coerce
+        .boolean()
+        .optional()
+        .describe("Include date added in output"),
     },
     async ({
       library,
@@ -333,7 +571,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         const allLibraries = await client.getLibraries();
         const movieLibraries = library
           ? allLibraries.filter(
-              (l) => l.type === "movie" && l.title.toLowerCase() === library.toLowerCase()
+              (l) =>
+                l.type === "movie" &&
+                l.title.toLowerCase() === library.toLowerCase(),
             )
           : allLibraries.filter((l) => l.type === "movie");
 
@@ -360,8 +600,12 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         let movies: ParsedMovie[] = [];
 
         for (const lib of movieLibraries) {
-          const { items } = await client.getLibraryItems(lib.key, { size: 2000 });
-          const parsed = items.map((item) => client.parseMediaItem(item, lib.title));
+          const { items } = await client.getLibraryItems(lib.key, {
+            size: 2000,
+          });
+          const parsed = items.map((item) =>
+            client.parseMediaItem(item, lib.title),
+          );
           movies = movies.concat(parsed);
         }
 
@@ -369,12 +613,14 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         if (genre) {
           const genreLower = genre.toLowerCase();
           movies = movies.filter((m) =>
-            m.genres?.some((g) => g.toLowerCase().includes(genreLower))
+            m.genres?.some((g) => g.toLowerCase().includes(genreLower)),
           );
         }
         if (content_rating) {
           const ratingLower = content_rating.toLowerCase();
-          movies = movies.filter((m) => m.contentRating?.toLowerCase() === ratingLower);
+          movies = movies.filter(
+            (m) => m.contentRating?.toLowerCase() === ratingLower,
+          );
         }
         if (year) {
           movies = movies.filter((m) => m.year === year);
@@ -388,23 +634,25 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         if (country) {
           const countryLower = country.toLowerCase();
           movies = movies.filter((m) =>
-            m.countries?.some((c) => c.toLowerCase().includes(countryLower))
+            m.countries?.some((c) => c.toLowerCase().includes(countryLower)),
           );
         }
         if (studio) {
           const studioLower = studio.toLowerCase();
-          movies = movies.filter((m) => m.studio?.toLowerCase().includes(studioLower));
+          movies = movies.filter((m) =>
+            m.studio?.toLowerCase().includes(studioLower),
+          );
         }
         if (director) {
           const directorLower = director.toLowerCase();
           movies = movies.filter((m) =>
-            m.directors?.some((d) => d.toLowerCase().includes(directorLower))
+            m.directors?.some((d) => d.toLowerCase().includes(directorLower)),
           );
         }
         if (actor) {
           const actorLower = actor.toLowerCase();
           movies = movies.filter((m) =>
-            m.actors?.some((a) => a.toLowerCase().includes(actorLower))
+            m.actors?.some((a) => a.toLowerCase().includes(actorLower)),
           );
         }
         if (resolution) {
@@ -416,7 +664,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
           const validRes = resMap[resolution] || [];
           movies = movies.filter((m) =>
-            validRes.some((r) => m.videoResolution?.toLowerCase().includes(r))
+            validRes.some((r) => m.videoResolution?.toLowerCase().includes(r)),
           );
         }
         if (watched_only) {
@@ -428,7 +676,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         if (watched_since_days) {
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() - watched_since_days);
-          movies = movies.filter((m) => m.lastViewedAt && m.lastViewedAt >= cutoff);
+          movies = movies.filter(
+            (m) => m.lastViewedAt && m.lastViewedAt >= cutoff,
+          );
         }
 
         if (movies.length === 0) {
@@ -444,7 +694,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
             movies.sort((a, b) => (b.rating || 0) - (a.rating || 0));
             break;
           case "audience_rating":
-            movies.sort((a, b) => (b.audienceRating || 0) - (a.audienceRating || 0));
+            movies.sort(
+              (a, b) => (b.audienceRating || 0) - (a.audienceRating || 0),
+            );
             break;
           case "year":
             movies.sort((a, b) => (b.year || 0) - (a.year || 0));
@@ -454,7 +706,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
             break;
           case "watched":
             movies.sort(
-              (a, b) => (b.lastViewedAt?.getTime() || 0) - (a.lastViewedAt?.getTime() || 0)
+              (a, b) =>
+                (b.lastViewedAt?.getTime() || 0) -
+                (a.lastViewedAt?.getTime() || 0),
             );
             break;
           case "size":
@@ -507,19 +761,28 @@ export function registerPlexTools(server: McpServer, config: Config): void {
               extras.push(`Added: ${client.formatDate(m.addedAt)}`);
             }
 
-            const extrasStr = extras.length > 0 ? ` - ${extras.join(", ")}` : "";
+            const extrasStr =
+              extras.length > 0 ? ` - ${extras.join(", ")}` : "";
             return `[${m.ratingKey}] ${m.title}${yearStr} - ${watchStatus}${extrasStr}`;
           })
           .join("\n");
 
         const limitNote =
-          limit && totalCount > limit ? `\n\n... showing ${limit} of ${totalCount} movies` : "";
+          limit && totalCount > limit
+            ? `\n\n... showing ${limit} of ${totalCount} movies`
+            : "";
+
+        // Warn if results exceed 500
+        const warnLargeResult = totalCount > 500 && (!limit || limit >= 500);
+        const warningNote = warnLargeResult
+          ? "\n\nNote: Large result set. Consider using limit for pagination."
+          : "";
 
         return {
           content: [
             {
               type: "text",
-              text: `${movies.length} movies${library ? ` in ${library}` : ""}:\n\n${formatted}${limitNote}`,
+              text: `${movies.length} movies${library ? ` in ${library}` : ""}:\n\n${formatted}${limitNote}${warningNote}`,
             },
           ],
         };
@@ -529,7 +792,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // ============================================================
@@ -557,7 +820,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           const lib = await client.getLibraryByName(library);
           if (!lib) {
             return {
-              content: [{ type: "text", text: `Library "${library}" not found.` }],
+              content: [
+                { type: "text", text: `Library "${library}" not found.` },
+              ],
               isError: true,
             };
           }
@@ -565,7 +830,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           const items = await client.getRecentlyAdded(lib.key, limit);
           if (items.length === 0) {
             return {
-              content: [{ type: "text", text: `No recent items in ${lib.title}.` }],
+              content: [
+                { type: "text", text: `No recent items in ${lib.title}.` },
+              ],
             };
           }
 
@@ -596,7 +863,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
 
           const items = await client.getRecentlyAdded(
             lib.key,
-            Math.ceil(limit / libraries.length)
+            Math.ceil(limit / libraries.length),
           );
           if (items.length === 0) continue;
 
@@ -630,7 +897,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // plex_refresh - Trigger library scan
@@ -641,7 +908,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
       library: z
         .string()
         .optional()
-        .describe("Library to refresh (optional, refreshes all if not specified)"),
+        .describe(
+          "Library to refresh (optional, refreshes all if not specified)",
+        ),
     },
     async ({ library }) => {
       try {
@@ -649,7 +918,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           const lib = await client.getLibraryByName(library);
           if (!lib) {
             return {
-              content: [{ type: "text", text: `Library "${library}" not found.` }],
+              content: [
+                { type: "text", text: `Library "${library}" not found.` },
+              ],
               isError: true,
             };
           }
@@ -657,7 +928,10 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           await client.refreshLibrary(lib.key);
           return {
             content: [
-              { type: "text", text: `Started library scan for "${lib.title}".` },
+              {
+                type: "text",
+                text: `Started library scan for "${lib.title}".`,
+              },
             ],
           };
         }
@@ -672,7 +946,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // plex_unwatched - Find unwatched content (cleanup candidates)
@@ -707,12 +981,17 @@ export function registerPlexTools(server: McpServer, config: Config): void {
 
         if (libraries.length === 0) {
           return {
-            content: [{ type: "text", text: `Library "${library}" not found.` }],
+            content: [
+              { type: "text", text: `Library "${library}" not found.` },
+            ],
             isError: true,
           };
         }
 
-        const candidates: Array<{ item: ReturnType<typeof client.parseMediaItem>; library: string }> = [];
+        const candidates: Array<{
+          item: ReturnType<typeof client.parseMediaItem>;
+          library: string;
+        }> = [];
         let totalSizeBytes = 0;
 
         for (const lib of libraries) {
@@ -742,18 +1021,24 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         }
 
         // Sort by size (largest first) for cleanup prioritization
-        candidates.sort((a, b) => (b.item.sizeBytes || 0) - (a.item.sizeBytes || 0));
+        candidates.sort(
+          (a, b) => (b.item.sizeBytes || 0) - (a.item.sizeBytes || 0),
+        );
 
         const limited = candidates.slice(0, limit);
         const formatted = limited
           .map(({ item }) => {
-            const size = item.sizeBytes ? client.formatSize(item.sizeBytes) : "unknown size";
+            const size = item.sizeBytes
+              ? client.formatSize(item.sizeBytes)
+              : "unknown size";
             return `[${item.ratingKey}] ${item.title} (${item.year || "N/A"}) - ${size} - Added ${client.formatDate(item.addedAt)}`;
           })
           .join("\n");
 
         const moreText =
-          candidates.length > limit ? `\n\n... and ${candidates.length - limit} more` : "";
+          candidates.length > limit
+            ? `\n\n... and ${candidates.length - limit} more`
+            : "";
 
         return {
           content: [
@@ -771,7 +1056,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // plex_watched_old - Find old watched content (cleanup candidates)
@@ -783,7 +1068,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .number()
         .optional()
         .default(180)
-        .describe("Content last watched more than this many days ago. Default: 180"),
+        .describe(
+          "Content last watched more than this many days ago. Default: 180",
+        ),
       library: z
         .string()
         .optional()
@@ -806,18 +1093,25 @@ export function registerPlexTools(server: McpServer, config: Config): void {
 
         if (libraries.length === 0) {
           return {
-            content: [{ type: "text", text: `Library "${library}" not found.` }],
+            content: [
+              { type: "text", text: `Library "${library}" not found.` },
+            ],
             isError: true,
           };
         }
 
-        const candidates: Array<{ item: ReturnType<typeof client.parseMediaItem>; library: string }> = [];
+        const candidates: Array<{
+          item: ReturnType<typeof client.parseMediaItem>;
+          library: string;
+        }> = [];
         let totalSizeBytes = 0;
 
         for (const lib of libraries) {
           if (!lib || (lib.type !== "movie" && lib.type !== "show")) continue;
 
-          const { items } = await client.getLibraryItems(lib.key, { size: 1000 });
+          const { items } = await client.getLibraryItems(lib.key, {
+            size: 1000,
+          });
           for (const item of items) {
             if (
               item.viewCount &&
@@ -855,7 +1149,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         const limited = candidates.slice(0, limit);
         const formatted = limited
           .map(({ item }) => {
-            const size = item.sizeBytes ? client.formatSize(item.sizeBytes) : "unknown size";
+            const size = item.sizeBytes
+              ? client.formatSize(item.sizeBytes)
+              : "unknown size";
             const lastViewed = item.lastViewedAt
               ? client.formatDate(item.lastViewedAt)
               : "unknown";
@@ -864,7 +1160,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           .join("\n");
 
         const moreText =
-          candidates.length > limit ? `\n\n... and ${candidates.length - limit} more` : "";
+          candidates.length > limit
+            ? `\n\n... and ${candidates.length - limit} more`
+            : "";
 
         return {
           content: [
@@ -882,7 +1180,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
   );
 
   // plex_delete - Delete content from Plex
@@ -915,7 +1213,10 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         if (!item) {
           return {
             content: [
-              { type: "text", text: `Item with ratingKey "${rating_key}" not found.` },
+              {
+                type: "text",
+                text: `Item with ratingKey "${rating_key}" not found.`,
+              },
             ],
             isError: true,
           };
@@ -935,7 +1236,8 @@ export function registerPlexTools(server: McpServer, config: Config): void {
 
         await client.deleteItem(rating_key);
 
-        const sizeMsg = sizeBytes > 0 ? ` (${client.formatSize(sizeBytes)} freed)` : "";
+        const sizeMsg =
+          sizeBytes > 0 ? ` (${client.formatSize(sizeBytes)} freed)` : "";
         return {
           content: [
             {
@@ -950,6 +1252,211 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           isError: true,
         };
       }
-    }
+    },
+  );
+
+  // ============================================================
+  // Extended Tools (Phase 0050)
+  // ============================================================
+
+  // plex_collections - List collections in libraries
+  server.tool(
+    "plex_collections",
+    "List collections in Plex libraries. Collections are curated groups of movies or shows.",
+    {
+      library: z
+        .string()
+        .optional()
+        .describe(
+          "Filter to specific library (optional, shows all if not specified)",
+        ),
+    },
+    async ({ library }) => {
+      try {
+        let libraryKey: string | undefined;
+
+        if (library) {
+          const lib = await client.getLibraryByName(library);
+          if (!lib) {
+            const libraries = await client.getLibraries();
+            const available = libraries.map((l) => l.title).join(", ");
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Library "${library}" not found. Available: ${available}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          libraryKey = lib.key;
+        }
+
+        const collections = await client.getCollections(libraryKey);
+
+        if (collections.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: library
+                  ? `No collections found in "${library}".`
+                  : "No collections found in any library.",
+              },
+            ],
+          };
+        }
+
+        // Group by library for display
+        const byLibrary = new Map<string, typeof collections>();
+        for (const collection of collections) {
+          const existing = byLibrary.get(collection.library) || [];
+          existing.push(collection);
+          byLibrary.set(collection.library, existing);
+        }
+
+        const sections: string[] = [];
+        for (const [libTitle, libCollections] of byLibrary) {
+          const formatted = libCollections
+            .map((c) => `  [${c.ratingKey}] ${c.title} (${c.childCount} items)`)
+            .join("\n");
+          sections.push(`${libTitle}:\n${formatted}`);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${collections.length} collections:\n\n${sections.join("\n\n")}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // plex_duplicates - Find duplicate items in libraries
+  server.tool(
+    "plex_duplicates",
+    "Find duplicate items in Plex libraries. Useful for identifying redundant copies and freeing disk space.",
+    {
+      library: z
+        .string()
+        .optional()
+        .describe(
+          "Filter to specific library (optional, checks all if not specified)",
+        ),
+    },
+    async ({ library }) => {
+      try {
+        let libraryKey: string | undefined;
+
+        if (library) {
+          const lib = await client.getLibraryByName(library);
+          if (!lib) {
+            const libraries = await client.getLibraries();
+            const available = libraries.map((l) => l.title).join(", ");
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Library "${library}" not found. Available: ${available}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          libraryKey = lib.key;
+        }
+
+        const duplicates = await client.getDuplicates(libraryKey);
+
+        if (duplicates.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: library
+                  ? `No duplicates found in "${library}".`
+                  : "No duplicates found in any library.",
+              },
+            ],
+          };
+        }
+
+        let totalWastedBytes = 0;
+        const formatted = duplicates
+          .map((dup) => {
+            // Count extra copies (total - 1)
+            const wastedBytes = dup.items
+              .slice(1)
+              .reduce((sum, i) => sum + i.sizeBytes, 0);
+            totalWastedBytes += wastedBytes;
+
+            const itemDetails = dup.items
+              .map((i) => {
+                const res = i.resolution ? ` [${i.resolution}]` : "";
+                return `    [${i.ratingKey}] ${client.formatSize(i.sizeBytes)}${res}`;
+              })
+              .join("\n");
+
+            const yearStr = dup.year ? ` (${dup.year})` : "";
+            return `${dup.title}${yearStr} - ${dup.duplicateCount} copies in ${dup.library}:\n${itemDetails}`;
+          })
+          .join("\n\n");
+
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `${duplicates.length} duplicate groups found:\n\n${formatted}\n\n` +
+                `Total potential savings: ${client.formatSize(totalWastedBytes)} ` +
+                `(keeping highest quality copy of each)`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // plex_optimize - Trigger database optimization
+  server.tool(
+    "plex_optimize",
+    "Trigger Plex database optimization. Cleans up the database and can improve performance.",
+    {},
+    async () => {
+      try {
+        const result = await client.optimizeDatabase();
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: result.success
+                ? `Database optimization: ${result.message}`
+                : `Optimization failed: ${result.message}`,
+            },
+          ],
+          isError: !result.success,
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: formatErrorResponse(error) }],
+          isError: true,
+        };
+      }
+    },
   );
 }

@@ -4,6 +4,8 @@ export interface HttpClientConfig {
   baseUrl: string;
   headers?: Record<string, string>;
   timeout?: number;
+  /** Service name for error messages (e.g., "Sonarr", "Radarr", "Plex") */
+  serviceName?: string;
 }
 
 export interface HttpResponse<T> {
@@ -15,18 +17,20 @@ export class HttpClient {
   private baseUrl: string;
   private headers: Record<string, string>;
   private timeout: number;
+  private serviceName?: string;
 
   constructor(config: HttpClientConfig) {
     // Remove trailing slash from base URL
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.headers = config.headers || {};
     this.timeout = config.timeout || 30000;
+    this.serviceName = config.serviceName;
   }
 
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
   ): Promise<HttpResponse<T>> {
     const url = `${this.baseUrl}${path}`;
 
@@ -51,7 +55,8 @@ export class HttpClient {
         throw new ApiError(
           `API request failed: ${response.status} ${response.statusText}`,
           response.status,
-          errorBody
+          errorBody,
+          { service: this.serviceName, endpoint: path },
         );
       }
 
@@ -71,18 +76,26 @@ export class HttpClient {
 
       if (error instanceof Error) {
         if (error.name === "AbortError") {
-          throw new NetworkError(`Request timed out after ${this.timeout}ms`, url);
+          throw new NetworkError(
+            `Request timed out after ${this.timeout}ms`,
+            url,
+            this.serviceName,
+          );
         }
         if (
           error.message.includes("ECONNREFUSED") ||
           error.message.includes("fetch failed")
         ) {
-          throw new NetworkError(`Cannot connect to server at ${this.baseUrl}`, url);
+          throw new NetworkError(
+            `Cannot connect to server at ${this.baseUrl}`,
+            url,
+            this.serviceName,
+          );
         }
-        throw new NetworkError(error.message, url);
+        throw new NetworkError(error.message, url, this.serviceName);
       }
 
-      throw new NetworkError("Unknown network error", url);
+      throw new NetworkError("Unknown network error", url, this.serviceName);
     }
   }
 

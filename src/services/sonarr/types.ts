@@ -95,7 +95,13 @@ export interface QueueItem {
   estimatedCompletionTime?: string;
   status: string;
   trackedDownloadStatus?: "ok" | "warning" | "error";
-  trackedDownloadState?: "downloading" | "importPending" | "importBlocked" | "importing" | "imported" | "failedPending";
+  trackedDownloadState?:
+    | "downloading"
+    | "importPending"
+    | "importBlocked"
+    | "importing"
+    | "imported"
+    | "failedPending";
   statusMessages: StatusMessage[];
   downloadId?: string;
   protocol: "usenet" | "torrent";
@@ -252,7 +258,14 @@ export interface AddSeriesRequest {
 export interface AddSeriesOptions {
   ignoreEpisodesWithFiles?: boolean;
   ignoreEpisodesWithoutFiles?: boolean;
-  monitor?: "all" | "future" | "missing" | "existing" | "pilot" | "firstSeason" | "none";
+  monitor?:
+    | "all"
+    | "future"
+    | "missing"
+    | "existing"
+    | "pilot"
+    | "firstSeason"
+    | "none";
   searchForMissingEpisodes?: boolean;
   searchForCutoffUnmetEpisodes?: boolean;
 }

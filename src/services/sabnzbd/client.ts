@@ -16,6 +16,8 @@ import type {
   SimpleResponse,
   CategoriesResponse,
   ServerStatus,
+  WarningsResponse,
+  QuotaInfo,
 } from "./types.js";
 
 export class SabnzbdClient {
@@ -33,7 +35,10 @@ export class SabnzbdClient {
   /**
    * Make a request to the Sabnzbd API with query parameter authentication
    */
-  private async request<T>(mode: string, params: Record<string, string> = {}): Promise<T> {
+  private async request<T>(
+    mode: string,
+    params: Record<string, string> = {},
+  ): Promise<T> {
     const searchParams = new URLSearchParams({
       mode,
       apikey: this.apiKey,
@@ -59,7 +64,8 @@ export class SabnzbdClient {
         throw new ApiError(
           `Sabnzbd API request failed: ${response.status} ${response.statusText}`,
           response.status,
-          errorBody
+          errorBody,
+          { service: "Sabnzbd", endpoint: mode },
         );
       }
 
@@ -69,7 +75,12 @@ export class SabnzbdClient {
       // Sabnzbd returns error in JSON body, not HTTP status
       if (data && typeof data === "object" && "error" in data) {
         const errorData = data as { error: string };
-        throw new ApiError(`Sabnzbd API error: ${errorData.error}`, 400, JSON.stringify(data));
+        throw new ApiError(
+          `Sabnzbd API error: ${errorData.error}`,
+          400,
+          JSON.stringify(data),
+          { service: "Sabnzbd", endpoint: mode },
+        );
       }
 
       return data;
@@ -82,15 +93,26 @@ export class SabnzbdClient {
 
       if (error instanceof Error) {
         if (error.name === "AbortError") {
-          throw new NetworkError(`Request timed out after ${this.timeout}ms`, url);
+          throw new NetworkError(
+            `Request timed out after ${this.timeout}ms`,
+            url,
+            "Sabnzbd",
+          );
         }
-        if (error.message.includes("ECONNREFUSED") || error.message.includes("fetch failed")) {
-          throw new NetworkError(`Cannot connect to Sabnzbd at ${this.baseUrl}`, url);
+        if (
+          error.message.includes("ECONNREFUSED") ||
+          error.message.includes("fetch failed")
+        ) {
+          throw new NetworkError(
+            `Cannot connect to Sabnzbd at ${this.baseUrl}`,
+            url,
+            "Sabnzbd",
+          );
         }
-        throw new NetworkError(error.message, url);
+        throw new NetworkError(error.message, url, "Sabnzbd");
       }
 
-      throw new NetworkError("Unknown network error", url);
+      throw new NetworkError("Unknown network error", url, "Sabnzbd");
     }
   }
 
@@ -268,5 +290,29 @@ export class SabnzbdClient {
   async findHistoryItem(nzoId: string): Promise<HistorySlot | null> {
     const history = await this.getHistory(100);
     return history.slots.find((item) => item.nzo_id === nzoId) || null;
+  }
+
+  // Extended Tools (Phase 0050)
+
+  /**
+   * Get quota information from the queue.
+   * Quota is included in the queue response when enabled in Sabnzbd.
+   */
+  async getQuota(): Promise<QuotaInfo> {
+    const queue = await this.getQueue();
+    return {
+      have_quota: queue.have_quota || false,
+      quota: queue.quota || "0",
+      left_quota: queue.left_quota || "0",
+    };
+  }
+
+  /**
+   * Get system warnings from Sabnzbd.
+   * Returns an array of warning messages.
+   */
+  async getWarnings(): Promise<string[]> {
+    const response = await this.request<WarningsResponse>("warnings");
+    return response.warnings || [];
   }
 }

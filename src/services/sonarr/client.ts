@@ -22,13 +22,16 @@ export class SonarrClient {
       headers: {
         "X-Api-Key": config.apiKey,
       },
+      serviceName: "Sonarr",
     });
   }
 
   // Series operations
 
   async searchSeries(query: string): Promise<SeriesLookup[]> {
-    return this.http.get<SeriesLookup[]>(`/series/lookup?term=${encodeURIComponent(query)}`);
+    return this.http.get<SeriesLookup[]>(
+      `/series/lookup?term=${encodeURIComponent(query)}`,
+    );
   }
 
   async getAllSeries(): Promise<Series[]> {
@@ -58,10 +61,10 @@ export class SonarrClient {
   async getQueue(
     page: number = 1,
     pageSize: number = 100,
-    includeUnknownSeriesItems: boolean = true
+    includeUnknownSeriesItems: boolean = true,
   ): Promise<QueuePage> {
     return this.http.get<QueuePage>(
-      `/queue?page=${page}&pageSize=${pageSize}&includeUnknownSeriesItems=${includeUnknownSeriesItems}`
+      `/queue?page=${page}&pageSize=${pageSize}&includeUnknownSeriesItems=${includeUnknownSeriesItems}`,
     );
   }
 
@@ -76,7 +79,7 @@ export class SonarrClient {
       removeFromClient?: boolean;
       blocklist?: boolean;
       skipRedownload?: boolean;
-    } = {}
+    } = {},
   ): Promise<void> {
     const params = new URLSearchParams();
     if (options.removeFromClient !== undefined) {
@@ -117,7 +120,10 @@ export class SonarrClient {
 
   // Commands
 
-  async executeCommand(name: string, body: Record<string, unknown> = {}): Promise<Command> {
+  async executeCommand(
+    name: string,
+    body: Record<string, unknown> = {},
+  ): Promise<Command> {
     return this.http.post<Command>("/command", { name, ...body });
   }
 
@@ -169,7 +175,37 @@ export class SonarrClient {
         item.trackedDownloadState === "importPending" ||
         item.trackedDownloadState === "importBlocked" ||
         item.trackedDownloadStatus === "warning" ||
-        item.trackedDownloadStatus === "error"
+        item.trackedDownloadStatus === "error",
     );
+  }
+
+  // Extended Tools (Phase 0050)
+
+  /**
+   * Rename all episode files for a series using Sonarr's naming rules.
+   * This triggers the RenameSeries command which renames files to match
+   * the configured naming format.
+   */
+  async renameSeries(seriesId: number): Promise<Command> {
+    return this.executeCommand("RenameSeries", { seriesIds: [seriesId] });
+  }
+
+  /**
+   * Refresh series metadata from TVDB.
+   * This updates episode information, images, and other metadata.
+   */
+  async refreshSeries(seriesId: number): Promise<Command> {
+    return this.executeCommand("RefreshSeries", { seriesId });
+  }
+
+  /**
+   * Get upcoming episodes with detailed information.
+   * Returns episodes airing within the specified number of days.
+   */
+  async getUpcoming(days: number = 7): Promise<Episode[]> {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + days);
+    return this.getCalendar(start, end);
   }
 }
