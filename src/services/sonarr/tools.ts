@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Config } from "../../config.js";
 import { SonarrClient } from "./client.js";
 import { formatErrorResponse } from "../../shared/errors.js";
-import type { SeriesLookup, Episode, QueueItem } from "./types.js";
+import type { SeriesLookup, Episode, QueueItem, EpisodeFile } from "./types.js";
 
 function formatSeriesLookup(series: SeriesLookup): string {
   const year = series.year ? ` (${series.year})` : "";
@@ -22,7 +22,39 @@ function formatEpisode(episode: Episode): string {
       ? "Missing"
       : "Unmonitored";
   const airDate = episode.airDate ? ` (${episode.airDate})` : "";
-  return `${seasonEp} - ${episode.title}${airDate} [${status}]`;
+
+  // Enhanced file info if available
+  const fileInfo = episode.episodeFile
+    ? formatEpisodeFileInfo(episode.episodeFile)
+    : "";
+
+  return `${seasonEp} - ${episode.title}${airDate} [${status}]${fileInfo}`;
+}
+
+function formatEpisodeFileInfo(file: EpisodeFile): string {
+  const parts: string[] = [];
+
+  // Quality
+  if (file.quality?.quality?.name) {
+    parts.push(file.quality.quality.name);
+  }
+
+  // Size
+  if (file.size) {
+    parts.push(formatBytes(file.size));
+  }
+
+  // Release group
+  if (file.releaseGroup) {
+    parts.push(file.releaseGroup);
+  }
+
+  // Video codec from mediaInfo
+  if (file.mediaInfo?.videoCodec) {
+    parts.push(file.mediaInfo.videoCodec);
+  }
+
+  return parts.length > 0 ? `\n   File: ${parts.join(" | ")}` : "";
 }
 
 function formatQueueItem(item: QueueItem): string {
@@ -508,7 +540,7 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
       try {
         const [series, episodes] = await Promise.all([
           client.getSeries(series_id),
-          client.getEpisodes(series_id),
+          client.getEpisodesWithFiles(series_id),
         ]);
 
         let filteredEpisodes = episodes;

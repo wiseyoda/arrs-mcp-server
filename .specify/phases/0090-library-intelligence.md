@@ -1,19 +1,18 @@
-# Phase 0090: Library Intelligence
+# Phase 0090: Library Intelligence (Stateless)
 
 **Status**: Not Started
 **Branch**: `0090-library-intelligence`
-**Estimated Scope**: Medium (builds on state foundation)
+**Estimated Scope**: Medium (cross-provider tools, no persistent state)
 
 ---
 
 ## Goals
 
 1. Cross-service consistency checks (Plex vs Sonarr/Radarr)
-2. Orphan detection (content without tracking, downloads without imports)
-3. Quality mismatches (4K in wrong library, wrong instance routing)
-4. Smart cleanup rules with dry-run → confirm → execute flow
-5. Bulk operations with preview and undo capability
-6. Enhanced storage forecasting with recommendations
+2. Orphan detection (content in Plex not tracked, downloads not imported)
+3. Quality mismatch detection (4K in wrong library)
+4. Smart cleanup suggestions with dry-run previews
+5. Bulk operation previews (no undo - just careful confirmation)
 
 ---
 
@@ -21,18 +20,19 @@
 
 ### In Scope
 
-- Consistency analysis tools
+- Stateless consistency analysis tools
 - Orphan detection across all services
 - Quality routing validation
-- Configurable cleanup rules execution
-- Bulk delete/archive with confirmation
-- Integration with state foundation (undo capability)
+- Cleanup preview (dry-run) tools
+- Bulk operation preview and confirm flow
+- Uses provider registry from Phase 0080
 
 ### Out of Scope
 
-- Automatic remediation (always confirm)
+- Undo capability (stateless - no audit log)
+- Persistent rules (no database)
+- Automatic remediation (always manual confirmation)
 - File-level operations (moving files between libraries)
-- Duplicate resolution (detection only, manual resolution)
 
 ---
 
@@ -40,232 +40,211 @@
 
 ### 1. Consistency Analysis Tools
 
-| Tool | Description |
-|------|-------------|
-| `consistency_check` | Full cross-service consistency report |
-| `consistency_plex_orphans` | Plex items not tracked in Sonarr/Radarr |
-| `consistency_arr_missing` | Sonarr/Radarr items not in Plex |
-| `consistency_download_orphans` | Downloads that never imported |
-| `consistency_quality` | Quality mismatches and routing issues |
+| Tool | Description | Requires |
+|------|-------------|----------|
+| `library_consistency` | Full cross-service consistency report | Plex + (Sonarr or Radarr) |
+| `library_plex_orphans` | Plex items not tracked in Sonarr/Radarr | Plex + (Sonarr or Radarr) |
+| `library_arr_missing` | Sonarr/Radarr items not in Plex | Plex + (Sonarr or Radarr) |
+| `library_download_orphans` | Downloads that never imported | Sabnzbd + (Sonarr or Radarr) |
+| `library_quality_check` | Quality mismatches and routing issues | Radarr + Radarr4k |
 
 ### 2. Smart Cleanup Tools
 
-| Tool | Description |
-|------|-------------|
-| `cleanup_preview` | Dry-run of cleanup based on criteria |
-| `cleanup_execute` | Execute cleanup with confirmation |
-| `cleanup_rules_run` | Run all enabled cleanup rules |
-| `cleanup_recommendations` | AI-powered cleanup suggestions |
+| Tool | Description | Requires |
+|------|-------------|----------|
+| `cleanup_suggestions` | AI-friendly cleanup recommendations | Plex + (Sonarr or Radarr) |
+| `cleanup_watched_old` | Preview old watched content for removal | Plex + (Sonarr or Radarr) |
+| `cleanup_unwatched_old` | Preview old unwatched content for removal | Plex + (Sonarr or Radarr) |
+| `cleanup_ended_series` | Preview ended/completed series | Plex + Sonarr |
 
-### 3. Bulk Operation Tools
-
-| Tool | Description |
-|------|-------------|
-| `bulk_delete` | Delete multiple items with preview |
-| `bulk_upgrade` | Trigger quality upgrades for multiple items |
-| `bulk_refresh` | Refresh metadata for multiple items |
-| `bulk_rename` | Rename files for multiple items |
-
-### 4. Example Workflows
+### 3. Example Workflows
 
 **Cross-service consistency check:**
-```typescript
-// User: "Are my libraries in sync?"
-consistency_check()
-// Response:
-// Library Consistency Report
-//
-// Plex ↔ Radarr Sync:
-//   Movies in both: 423
-//   In Plex only (orphans): 12
-//   In Radarr only (not imported): 5
-//
-// Plex ↔ Sonarr Sync:
-//   Series in both: 156
-//   In Plex only (orphans): 3
-//   In Sonarr only (not imported): 2
-//
-// Download Orphans:
-//   Completed but not imported: 4
-//   Failed imports: 2
-//
-// Quality Issues:
-//   4K content in HD library: 2
-//   HD content in 4K library: 0
-//
-// Run specific checks for details:
-//   consistency_plex_orphans()
-//   consistency_download_orphans()
-//   consistency_quality()
+```
+User: "Are my libraries in sync?"
+
+library_consistency()
+
+Response:
+Library Consistency Report
+
+Plex ↔ Radarr Sync:
+  Movies in both: 423
+  In Plex only (orphans): 12
+  In Radarr only (not imported): 5
+
+Plex ↔ Sonarr Sync:
+  Series in both: 156
+  In Plex only (orphans): 3
+  In Sonarr only (not imported): 2
+
+Download Status:
+  Completed but not imported: 4
+  Failed imports: 2
+
+Quality Issues:
+  4K content in HD Radarr: 2
+  HD content in 4K Radarr: 0
+
+Run specific checks for details:
+  library_plex_orphans() - see Plex-only items
+  library_download_orphans() - see stuck downloads
+  library_quality_check() - see quality issues
 ```
 
-**Find and fix orphans:**
-```typescript
-// User: "Show me what's in Plex but not tracked"
-consistency_plex_orphans()
-// Response:
-// Plex Orphans (15 items, 186.5 GB)
-//
-// Movies (12):
-// [plex:12345] Avatar (2009) - 4.2 GB - Not in Radarr
-// [plex:12346] Titanic (1997) - 3.8 GB - Not in Radarr
-// ...
-//
-// TV Shows (3):
-// [plex:23456] The Office (US) - 45.2 GB - Not in Sonarr
-// ...
-//
-// Options:
-// 1. Add to Sonarr/Radarr to track: Use movie_add/tv_add
-// 2. Remove from Plex: Use plex_delete({ rating_keys: [...] })
-// 3. Investigate: These may be intentionally manual additions
+**Find and resolve orphans:**
+```
+User: "Show me what's in Plex but not tracked"
 
-// User: "Add Avatar to Radarr so it's tracked"
-movie_add({ title: 'Avatar', year: 2009, search: false })
-// Response:
-// Added "Avatar (2009)" to Radarr (ID: 789)
-// Search disabled - using existing file in Plex library.
+library_plex_orphans()
+
+Response:
+Plex Orphans (15 items, 186.5 GB)
+
+Movies (12):
+  [plex:12345] Avatar (2009) - 4.2 GB - Not in Radarr
+  [plex:12346] Titanic (1997) - 3.8 GB - Not in Radarr
+  ...
+
+TV Shows (3):
+  [plex:23456] The Office (US) - 45.2 GB - Not in Sonarr
+  ...
+
+Options:
+  1. Add to Sonarr/Radarr to track: movie_add() / tv_add()
+  2. Remove from Plex: plex_delete()
+  3. Leave as-is (manually managed content)
 ```
 
-**Smart cleanup with preview:**
-```typescript
-// User: "What cleanup can I safely do?"
-cleanup_recommendations()
-// Response:
-// Cleanup Recommendations
-//
-// High Confidence (safe to remove):
-//   Watched movies 180+ days ago: 28 movies, 312 GB
-//   Ended series, fully watched: 8 series, 156 GB
-//   Failed downloads (7+ days): 5 items
-//
-// Medium Confidence (review recommended):
-//   Unwatched movies 365+ days: 15 movies, 178 GB
-//   Partially watched, abandoned: 6 items, 45 GB
-//
-// Total potential savings: 691 GB
-//
-// Preview any category:
-//   cleanup_preview({ category: 'watched_old_movies', days: 180 })
+**Smart cleanup preview:**
+```
+User: "What can I safely clean up?"
 
-cleanup_preview({ category: 'watched_old_movies', days: 180 })
-// Response:
-// Cleanup Preview: Watched Movies (180+ days)
-//
-// 28 movies would be removed (312 GB):
-//
-// [radarr:101] Avengers: Endgame - Watched 245 days ago - 4.2 GB
-// [radarr:102] John Wick 3 - Watched 312 days ago - 3.8 GB
-// [radarr:103] Joker - Watched 198 days ago - 5.1 GB
-// ...
-//
-// Ready to proceed?
-//   cleanup_execute({ category: 'watched_old_movies', days: 180, confirm: true })
+cleanup_suggestions()
 
-cleanup_execute({ category: 'watched_old_movies', days: 180, confirm: true })
-// Response:
-// Cleanup Executed: Watched Movies (180+ days)
-//
-// Removed 28 movies (312 GB freed):
-// - Removed from Radarr with files deleted
-// - Action logged (can undo within 30 days)
-//
-// Note: Actual disk space freed after filesystem sync.
+Response:
+Cleanup Suggestions
+
+High Confidence (watched, old):
+  28 movies watched 180+ days ago (312 GB)
+  8 ended series, fully watched (156 GB)
+
+Medium Confidence (unwatched, old):
+  15 movies unwatched 365+ days (178 GB)
+  4 series with no recent episodes watched (89 GB)
+
+Low Confidence (review carefully):
+  3 movies rated highly but unwatched (22 GB)
+
+Total potential savings: 757 GB
+
+Preview any category:
+  cleanup_watched_old({ min_days: 180 })
+  cleanup_unwatched_old({ min_days: 365 })
+  cleanup_ended_series()
 ```
 
-**Bulk operations:**
-```typescript
-// User: "Delete all movies rated below 5.0"
-bulk_delete({
-  type: 'movie',
-  filter: { rating_lt: 5.0 },
-  preview: true
-})
-// Response:
-// Bulk Delete Preview: Movies with rating < 5.0
-//
-// 8 movies would be deleted (67.2 GB):
-//
-// [radarr:201] Movie A - Rating: 4.2 - 8.5 GB
-// [radarr:202] Movie B - Rating: 3.8 - 7.2 GB
-// ...
-//
-// Confirm deletion:
-//   bulk_delete({ type: 'movie', filter: { rating_lt: 5.0 }, confirm: true })
+**Cleanup with explicit confirmation:**
+```
+User: "Show me the watched movies over 180 days"
 
-// User: "Yes, delete them"
-bulk_delete({ type: 'movie', filter: { rating_lt: 5.0 }, confirm: true })
-// Response:
-// Bulk Delete Executed
-//
-// Deleted 8 movies (67.2 GB):
-// - Movie A (removed)
-// - Movie B (removed)
-// ...
-//
-// Action logged as #156. Undo with: history_undo({ action_id: 156 })
+cleanup_watched_old({ min_days: 180 })
+
+Response:
+Watched Movies (180+ days) - 28 items, 312 GB
+
+[radarr:101] Avengers: Endgame - Watched 245 days ago - 4.2 GB
+[radarr:102] John Wick 3 - Watched 312 days ago - 3.8 GB
+[radarr:103] Joker - Watched 198 days ago - 5.1 GB
+...
+
+To remove these, use radarr_delete() with each ID.
+Example: radarr_delete({ id: 101, delete_files: true })
+
+⚠️ Deletions are permanent. There is no undo.
+```
+
+### 4. Quality Mismatch Detection
+
+```
+User: "Check my 4K library routing"
+
+library_quality_check()
+
+Response:
+Quality Library Check
+
+4K Content in HD Radarr (wrong library):
+  [radarr:201] Dune (2021) - 2160p - 45.2 GB
+    → Should be in Radarr4k
+  [radarr:202] Oppenheimer (2023) - 2160p - 52.1 GB
+    → Should be in Radarr4k
+
+HD Content in 4K Radarr:
+  None found ✓
+
+Recommendations:
+  1. Delete from Radarr (wrong instance)
+  2. Add to Radarr4k (correct instance)
+  3. Let Radarr4k search for the 4K version
 ```
 
 ---
 
-## Consistency Detection Logic
+## Matching Logic
 
-### Plex Orphans
+### ID-Based Matching (Preferred)
 
 ```typescript
-// Find Plex items not in Sonarr/Radarr
-async function findPlexOrphans() {
-  const plexMovies = await plexClient.getAllMovies();
-  const radarrMovies = await radarrClient.getAllMovies();
+// Match by IMDB ID first, then TMDB ID, then title+year
+function matchMovie(plexMovie: PlexMovie, radarrMovie: RadarrMovie): boolean {
+  // IMDB ID match
+  if (plexMovie.imdbId && radarrMovie.imdbId) {
+    return plexMovie.imdbId === radarrMovie.imdbId;
+  }
 
-  // Match by IMDB ID, TMDB ID, or title+year
-  const radarrIndex = buildIndex(radarrMovies);
+  // TMDB ID match
+  if (plexMovie.tmdbId && radarrMovie.tmdbId) {
+    return plexMovie.tmdbId === radarrMovie.tmdbId;
+  }
 
-  return plexMovies.filter(movie => !radarrIndex.has(movie));
+  // Fallback: title + year
+  return normalizeTitle(plexMovie.title) === normalizeTitle(radarrMovie.title)
+    && plexMovie.year === radarrMovie.year;
+}
+
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/^the/, '');
 }
 ```
 
-### Download Orphans
+### Performance Considerations
+
+For large libraries:
+1. Build indexes for O(1) lookups
+2. Process in batches
+3. Stream results for very large result sets
 
 ```typescript
-// Find completed downloads not in library
-async function findDownloadOrphans() {
-  const history = await sabnzbdClient.getHistory();
-  const completed = history.filter(h => h.status === 'Completed');
+async function findOrphans(): Promise<OrphanResult[]> {
+  const [plexMovies, radarrMovies] = await Promise.all([
+    plexClient.getAllMovies(),
+    radarrClient.getAllMovies(),
+  ]);
 
-  // Check if imported to Sonarr/Radarr
-  const sonarrHistory = await sonarrClient.getHistory();
-  const radarrHistory = await radarrClient.getHistory();
-
-  return completed.filter(d => !wasImported(d, sonarrHistory, radarrHistory));
-}
-```
-
-### Quality Mismatches
-
-```typescript
-// Find content in wrong quality library
-async function findQualityMismatches() {
-  const radarrMovies = await radarrClient.getAllMovies();
-  const radarr4kMovies = await radarr4kClient.getAllMovies();
-
-  const issues = [];
-
-  // 4K content in HD Radarr
+  // Build lookup index
+  const radarrIndex = new Map<string, RadarrMovie>();
   for (const movie of radarrMovies) {
-    if (movie.movieFile?.quality?.quality?.resolution >= 2160) {
-      issues.push({ movie, issue: '4K in HD library' });
-    }
+    if (movie.imdbId) radarrIndex.set(`imdb:${movie.imdbId}`, movie);
+    if (movie.tmdbId) radarrIndex.set(`tmdb:${movie.tmdbId}`, movie);
+    radarrIndex.set(`title:${normalizeTitle(movie.title)}:${movie.year}`, movie);
   }
 
-  // HD content in 4K Radarr
-  for (const movie of radarr4kMovies) {
-    if (movie.movieFile?.quality?.quality?.resolution < 2160) {
-      issues.push({ movie, issue: 'HD in 4K library' });
-    }
-  }
-
-  return issues;
+  // Find orphans
+  return plexMovies.filter(movie => !isInIndex(movie, radarrIndex));
 }
 ```
 
@@ -275,11 +254,11 @@ async function findQualityMismatches() {
 
 | Decision | Value | Rationale |
 |----------|-------|-----------|
-| Matching strategy | IMDB > TMDB > title+year | Most reliable identification |
-| Orphan threshold | 24 hours since import | Allow time for processing |
-| Bulk limit | 100 items per operation | Prevent accidental mass deletion |
-| Preview required | Always before bulk ops | Safety first |
-| Undo logging | All bulk ops logged as single action | Easy reversal |
+| State | Stateless | No database, no sync issues, no complexity |
+| Undo | Not supported | Explicit confirmation is safer than undo |
+| Matching | ID-based priority | Most reliable, falls back to title+year |
+| Bulk ops | Preview only | Actual deletion via existing tools |
+| Thresholds | Configurable | Different users have different needs |
 
 ---
 
@@ -287,70 +266,33 @@ async function findQualityMismatches() {
 
 **Gate 9** - Library Intelligence:
 
-- [ ] Consistency check identifies Plex orphans correctly
-- [ ] Consistency check identifies Sonarr/Radarr orphans correctly
-- [ ] Download orphans detection works
-- [ ] Quality mismatch detection works
-- [ ] Cleanup preview shows accurate counts
-- [ ] Cleanup execute removes correct items
-- [ ] Bulk delete preview is accurate
-- [ ] Bulk delete creates undo record
-- [ ] Undo restores bulk deleted items
-- [ ] All operations require confirmation
+- [ ] `library_consistency` shows accurate counts
+- [ ] `library_plex_orphans` finds known orphan content
+- [ ] `library_arr_missing` finds content not in Plex
+- [ ] `library_download_orphans` finds stuck downloads
+- [ ] `library_quality_check` detects misrouted 4K content
+- [ ] `cleanup_suggestions` provides useful recommendations
+- [ ] `cleanup_watched_old` preview is accurate
+- [ ] Tools error clearly when required providers missing
+- [ ] Large library performance is acceptable (1000+ items)
 
 ---
 
 ## Dependencies
 
-- Phase 0080 (state-foundation) must be complete
-- Audit log infrastructure available
-- Undo capability implemented
-
----
-
-## Technical Notes
-
-### Matching Algorithm
-
-Use fuzzy matching for title comparison:
-```typescript
-function titlesMatch(a: string, b: string): boolean {
-  const normalize = (s: string) => s
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .replace(/^the/, '');
-
-  return normalize(a) === normalize(b);
-}
-```
-
-### Performance Considerations
-
-For large libraries:
-1. Cache Plex/Sonarr/Radarr data with short TTL
-2. Build indexes for O(1) lookups
-3. Process in batches for bulk operations
-4. Stream results for very large operations
-
-### Audit Integration
-
-All destructive operations must:
-1. Log to audit_log before execution
-2. Store enough detail for undo
-3. Update action status after completion
-4. Handle partial failures gracefully
+- Phase 0080 (provider-cleanup) must be complete
+- Provider registry available
+- Cross-provider utilities available
 
 ---
 
 ## Testing Checklist
 
-- [ ] Test with known orphans
-- [ ] Test with no orphans (clean library)
+- [ ] Test with known orphans (manually add to Plex without Radarr)
+- [ ] Test with clean library (no orphans)
 - [ ] Test download orphan detection
 - [ ] Test quality mismatch detection
 - [ ] Test cleanup preview accuracy
-- [ ] Test bulk delete with small set
-- [ ] Test undo after bulk delete
 - [ ] Test with empty libraries
-- [ ] Test with very large libraries (1000+ items)
-- [ ] Test partial failure handling
+- [ ] Test with large libraries (1000+ items)
+- [ ] Test with missing providers (graceful error)

@@ -4,6 +4,280 @@
 
 ---
 
+## 0080 - provider-cleanup
+
+**Completed**: 2026-01-25
+
+# Phase 0080: Provider Cleanup & Hardening
+
+**Status**: Not Started
+**Branch**: `0080-provider-cleanup`
+**Estimated Scope**: Medium (refactoring, audit, new discovery tools)
+
+---
+
+## Goals
+
+1. Formalize conditional provider registration (presence-based)
+2. Create provider discovery tool for Claude
+3. Build cross-provider utility foundation for Phase 0090
+4. Audit and harden all existing providers
+5. Improve error messages for missing/misconfigured providers
+
+---
+
+## Scope
+
+### In Scope
+
+- Provider registry abstraction
+- `providers_status` discovery tool
+- Cross-provider utility module
+- Per-provider API audit and improvements
+- Error handling improvements
+- Tool description updates for provider dependencies
+
+### Out of Scope
+
+- New providers (covered in future phases)
+- Database or persistent state
+- Breaking changes to existing tool interfaces
+
+---
+
+## Deliverables
+
+### 1. Provider Registry
+
+Create a centralized provider registry that tracks which providers are configured:
+
+```typescript
+// src/providers/registry.ts
+export interface ProviderStatus {
+  name: string;
+  configured: boolean;
+  capabilities: string[];  // e.g., ['search', 'add', 'delete', 'queue']
+}
+
+export interface ProviderRegistry {
+  isConfigured(provider: string): boolean;
+  getConfigured(): string[];
+  getMissing(): string[];
+  getStatus(): ProviderStatus[];
+  requireProviders(...providers: string[]): void;  // throws if missing
+}
+```
+
+### 2. Provider Discovery Tool
+
+| Tool | Description |
+|------|-------------|
+| `providers_status` | List configured and missing providers with their capabilities |
+
+**Example output:**
+```
+Provider Status
+
+Configured:
+  ✓ Sonarr - TV show management (search, add, list, queue, calendar)
+  ✓ Radarr - Movie management (search, add, list, queue)
+  ✓ Radarr4k - 4K movie management (search, add, list, queue)
+  ✓ Plex - Media library (search, watch status, recently added)
+  ✓ Sabnzbd - Download client (queue, history, pause/resume)
+  ✓ TMDB - Movie/TV database (search, details, collections, trending)
+
+Not Configured:
+  ✗ Overseerr - Request management
+    → Configure with OVERSEERR_URL and OVERSEERR_API_KEY
+
+Cross-Provider Features:
+  ✓ Library Intelligence (requires: Plex + Sonarr/Radarr)
+  ✗ Request Workflow (requires: Overseerr)
+```
+
+### 3. Cross-Provider Utilities
+
+Foundation for Phase 0090's library intelligence:
+
+```typescript
+// src/providers/cross-provider.ts
+export function requireProviders(
+  registry: ProviderRegistry,
+  ...providers: string[]
+): void {
+  const missing = providers.filter(p => !registry.isConfigured(p));
+  if (missing.length > 0) {
+    throw new ProviderNotConfiguredError(missing);
+  }
+}
+
+export function getAvailableMediaProviders(registry: ProviderRegistry): string[] {
+  return ['sonarr', 'radarr', 'radarr4k', 'plex']
+    .filter(p => registry.isConfigured(p));
+}
+```
+
+### 4. Provider Audit & Hardening
+
+Audit each provider for improvements:
+
+#### Sonarr
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Episode details | Basic info | Add file quality, size, release group |
+| Calendar | Date range | Add download status for upcoming |
+| Queue | Basic status | Add ETA, progress percentage |
+| Series | Core fields | Add ratings, network, certification |
+
+#### Radarr
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Movie details | Basic info | Add file quality, size, audio format |
+| Queue | Basic status | Add ETA, progress percentage |
+| Collection | Not exposed | Add collection membership info |
+| Credits | Not exposed | Add director/cast for recommendations |
+
+#### Plex
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Watch history | Basic | Add watch count, last watched date |
+| On Deck | Not exposed | Add continue watching list |
+| Collections | Not exposed | Add Plex collection support |
+| Audio/Subtitle | Not exposed | Add track info for quality assessment |
+
+#### Sabnzbd
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Queue items | Basic | Add category, priority, post-processing |
+| History | Basic | Add failure reason details |
+| Server stats | Not exposed | Add connection status, bandwidth |
+
+#### Overseerr
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Request details | Basic | Add requester quota usage |
+| Media info | Basic | Add availability per quality |
+
+#### TMDB
+| Area | Current | Improvement |
+|------|---------|-------------|
+| Credits | Not exposed | Add for recommendation context |
+| Keywords | Not exposed | Add for better discovery |
+| Watch providers | Not exposed | Add streaming availability |
+
+### 5. Error Message Improvements
+
+**Current:**
+```
+Error: Cannot read property 'url' of undefined
+```
+
+**Improved:**
+```
+Overseerr is not configured. This tool requires Overseerr.
+
+To configure Overseerr, add to config.json:
+{
+  "overseerr": {
+    "url": "http://your-overseerr:5055",
+    "apiKey": "your-api-key"
+  }
+}
+
+Or set environment variables:
+  OVERSEERR_URL=http://your-overseerr:5055
+  OVERSEERR_API_KEY=your-api-key
+```
+
+### 6. Tool Description Updates
+
+Update tool descriptions to indicate provider dependencies:
+
+```typescript
+server.tool(
+  "consistency_check",
+  "Check library consistency across services. " +
+    "Requires: Plex + (Sonarr or Radarr)",
+  { /* params */ },
+  async (params) => { /* ... */ }
+);
+```
+
+---
+
+## Implementation Plan
+
+### Step 1: Provider Registry
+1. Create `src/providers/registry.ts`
+2. Create `src/providers/types.ts`
+3. Create `src/providers/errors.ts`
+4. Update `src/index.ts` to build registry at startup
+
+### Step 2: Discovery Tool
+1. Add `providers_status` to system tools
+2. Format output for Claude readability
+3. Include configuration hints for missing providers
+
+### Step 3: Provider Audit
+For each provider:
+1. Review API documentation for unused endpoints
+2. Check response types for unused fields
+3. Add new fields to types
+4. Update client methods
+5. Update tool outputs
+
+### Step 4: Error Handling
+1. Create `ProviderNotConfiguredError`
+2. Update all tools to use registry checks
+3. Improve error message formatting
+
+---
+
+## Design Decisions
+
+| Decision | Value | Rationale |
+|----------|-------|-----------|
+| Registration | Presence-based | Already working, no config change needed |
+| Registry pattern | Singleton at startup | Simple, no runtime overhead |
+| Capability list | Static per provider | Avoids runtime API checks |
+| Audit scope | Useful fields only | Don't expose everything, just what helps |
+
+---
+
+## Verification Gate
+
+**Gate 8** - Provider Cleanup:
+
+- [ ] `providers_status` shows all configured providers
+- [ ] `providers_status` shows helpful hints for missing providers
+- [ ] Cross-provider tools fail gracefully with clear message
+- [ ] At least 3 improvements per major provider (Sonarr, Radarr, Plex)
+- [ ] Error messages include configuration instructions
+- [ ] Tool descriptions mention provider requirements
+- [ ] Server starts with minimal config (single provider)
+- [ ] All existing tests still pass
+
+---
+
+## Dependencies
+
+- Phase 0070 (discovery-engine) complete
+- No external dependencies
+
+---
+
+## Testing Checklist
+
+- [ ] Server starts with only Sonarr configured
+- [ ] Server starts with only Plex configured
+- [ ] `providers_status` accurate for partial config
+- [ ] Cross-provider tools error clearly when provider missing
+- [ ] New provider fields appear in tool outputs
+- [ ] Error messages are actionable
+
+
+---
+
 ## 0070 - discovery-engine
 
 **Completed**: 2026-01-25

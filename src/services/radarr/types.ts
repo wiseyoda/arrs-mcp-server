@@ -60,6 +60,8 @@ export interface MovieFile {
   path: string;
   size: number;
   dateAdded: string;
+  sceneName?: string;
+  releaseGroup?: string;
   quality: QualityRevision;
   mediaInfo?: MediaInfo;
 }

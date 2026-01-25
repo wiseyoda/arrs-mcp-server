@@ -5,7 +5,7 @@
     "name": "arrs-mcp-server",
     "path": "/Users/ppatterson/dev/arrs-mcp-server"
   },
-  "last_updated": "2026-01-25T21:22:51.553Z",
+  "last_updated": "2026-01-25T23:50:26.562Z",
   "orchestration": {
     "phase": {
       "id": null,
@@ -14,19 +14,18 @@
       "branch": null,
       "status": "not_started",
       "goals": [
-        "TMDB integration for trending, popular, and recommendations",
-        "Trakt integration for personal lists, community lists, and history",
-        "Letterboxd integration for curated film lists",
-        "Collection completion (missing items from franchises)",
-        "Personal taste profiles based on watch history and ratings",
-        "Cross-reference external lists with existing library"
+        "Formalize conditional provider registration (presence-based)",
+        "Create provider discovery tool for Claude",
+        "Build cross-provider utility foundation for Phase 0090",
+        "Audit and harden all existing providers",
+        "Improve error messages for missing/misconfigured providers"
       ],
       "hasUserGate": false,
       "userGateStatus": "confirmed"
     },
     "next_phase": {
-      "number": "0080",
-      "name": "state-foundation"
+      "number": "0090",
+      "name": "library-intelligence"
     },
     "step": {
       "current": "design",
@@ -35,7 +34,7 @@
     },
     "analyze": {
       "iteration": null,
-      "completedAt": 1769374866
+      "completedAt": 1769380599
     },
     "implement": null,
     "progress": {
@@ -112,6 +111,15 @@
         "phase_name": "discovery-engine",
         "branch": "0070-discovery-engine",
         "completed_at": "2026-01-25T21:22:51.553Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0080",
+        "phase_name": "provider-cleanup",
+        "branch": "0080-provider-cleanup",
+        "completed_at": "2026-01-25T23:50:26.562Z",
         "tasks_completed": 0,
         "tasks_total": 0
       }

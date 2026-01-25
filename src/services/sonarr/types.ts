@@ -79,6 +79,44 @@ export interface Episode {
   sceneSeasonNumber?: number;
   unverifiedSceneNumbering: boolean;
   grabbed?: boolean;
+  /** Episode file details (when hasFile is true) */
+  episodeFile?: EpisodeFile;
+}
+
+/**
+ * Episode file details including quality, size, and release info
+ */
+export interface EpisodeFile {
+  id: number;
+  seriesId: number;
+  seasonNumber: number;
+  relativePath: string;
+  path: string;
+  size: number;
+  dateAdded: string;
+  sceneName?: string;
+  releaseGroup?: string;
+  quality: QualityRevision;
+  mediaInfo?: MediaInfo;
+}
+
+/**
+ * Media information for episode files
+ */
+export interface MediaInfo {
+  audioBitrate?: number;
+  audioChannels?: number;
+  audioCodec?: string;
+  audioLanguages?: string;
+  audioStreamCount?: number;
+  videoBitDepth?: number;
+  videoBitrate?: number;
+  videoCodec?: string;
+  videoFps?: number;
+  resolution?: string;
+  runTime?: string;
+  scanType?: string;
+  subtitles?: string;
 }
 
 export interface QueueItem {

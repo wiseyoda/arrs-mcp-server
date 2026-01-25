@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../config.js";
+import type { ProviderRegistry } from "../providers/index.js";
 import { SonarrClient } from "../services/sonarr/client.js";
 import { RadarrClient } from "../services/radarr/client.js";
 import { PlexClient } from "../services/plex/client.js";
@@ -23,6 +24,7 @@ interface ServiceHealth {
 export function registerSystemHealthTool(
   server: McpServer,
   config: Config,
+  registry: ProviderRegistry,
 ): void {
   server.tool(
     "system_health",
@@ -417,9 +419,17 @@ export function registerSystemHealthTool(
         }
       }
 
+      // Get missing providers from registry
+      const missingProviders = registry.getMissing();
+
       if (services.length === 0) {
+        let text = "No services configured.\n\n";
+        if (missingProviders.length > 0) {
+          text += `Missing providers: ${missingProviders.join(", ")}\n`;
+          text += "Use providers_status for configuration details.";
+        }
         return {
-          content: [{ type: "text", text: "No services configured." }],
+          content: [{ type: "text", text }],
         };
       }
 
@@ -481,6 +491,15 @@ export function registerSystemHealthTool(
         }
 
         output += "\n";
+      }
+
+      // Show missing providers (optional section)
+      if (missingProviders.length > 0 && verbose) {
+        output += "Not Configured:\n";
+        for (const provider of missingProviders) {
+          output += `  - ${provider}\n`;
+        }
+        output += "Use providers_status for configuration details.\n";
       }
 
       return {

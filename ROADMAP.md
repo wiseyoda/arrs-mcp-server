@@ -39,9 +39,9 @@ This allows inserting urgent work without renumbering existing phases.
 | 0050 | polish-extended | ✅ Complete | All extended tools, cleanup workflows |
 | 0060 | overseerr | ✅ Complete | Request management, user management, discovery |
 | 0070 | discovery-engine | ✅ Complete | TMDB + Trakt + Letterboxd integration |
-| 0080 | state-foundation | ⬜ Not Started | SQLite database, audit log, undo, analytics |
-| 0090 | library-intelligence | ⬜ Not Started | Cross-service consistency, smart cleanup |
-| 0100 | telegram-notifications | ⬜ Not Started | Enhanced notifications via Telegram bot |
+| 0080 | provider-cleanup | ✅ Complete | Provider registry, discovery tool, API hardening |
+| 0090 | library-intelligence | ⬜ Not Started | Cross-service consistency, orphan detection (stateless) |
+| 0100 | documentation | ⬜ Not Started | README overhaul, tool catalog, troubleshooting guide |
 | 0110 | testing-hardening | ⬜ Not Started | **USER GATE**: Tests, CI/CD, public release ready |
 
 **Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | **USER GATE** = Requires user verification
@@ -84,10 +84,10 @@ specflow phase list --complete
 | **Gate 5** | 0050  | **USER GATE**: All core workflows work end-to-end, large libraries handled, error messages helpful |
 | **Gate 6** | 0060  | Overseerr requests viewable, approve/deny works, user management accessible |
 | **Gate 7** | 0070  | External API integrations work, collection completion finds missing items |
-| **Gate 8** | 0080  | SQLite stores actions, undo works, storage analytics accurate |
-| **Gate 9** | 0090  | Orphan detection works, bulk operations preview correctly, consistency checks accurate |
-| **Gate 10** | 0100 | Telegram notifications received for key events |
-| **Gate 11** | 0110 | **USER GATE**: All tests pass, CI/CD works, documentation complete for public release |
+| **Gate 8** | 0080  | Provider registry works, discovery tool accurate, error messages helpful |
+| **Gate 9** | 0090  | Orphan detection works, consistency checks accurate, cleanup previews useful |
+| **Gate 10** | 0100 | README complete, tool catalog accurate, troubleshooting guide helpful |
+| **Gate 11** | 0110 | **USER GATE**: All tests pass, CI/CD works, ready for public release |
 
 ---
 
@@ -152,9 +152,7 @@ Services are configured in `config.json` or environment variables:
   "plex": { "url": "...", "token": "..." },
   "sabnzbd": { "url": "...", "apiKey": "..." },
   "overseerr": { "url": "...", "apiKey": "..." },
-  "tmdb": { "apiKey": "..." },
-  "trakt": { "clientId": "...", "clientSecret": "..." },
-  "telegram": { "botToken": "...", "chatId": "..." }
+  "tmdb": { "apiKey": "..." }
 }
 ```
 
@@ -164,8 +162,8 @@ The project is complete when:
 
 1. All core tools for all services work (Sonarr, Radarr, Plex, Sabnzbd, Overseerr)
 2. Natural language requests are handled smoothly
-3. Error messages are helpful
-4. Configuration is straightforward
+3. Error messages are helpful and actionable
+4. Configuration is straightforward (works with partial config)
 5. Works with both Claude Desktop and Claude Code
 6. Top workflows work seamlessly:
    - "Add Breaking Bad" → searches, confirms, adds, reports search started
@@ -174,12 +172,10 @@ The project is complete when:
    - "Get Inception in 4K" → correctly routes to Radarr4k
    - "What requests are pending?" → shows Overseerr requests
    - "What Marvel movies am I missing?" → collection completion
-7. External integrations work (TMDB, Trakt, Letterboxd)
-8. State persistence enables undo and analytics
-9. Library intelligence catches orphans and inconsistencies
-10. Telegram notifications keep user informed
-11. Comprehensive test suite passes
-12. Documentation ready for public release
+7. External integrations work (TMDB)
+8. Library intelligence catches orphans and inconsistencies (stateless)
+9. Comprehensive test suite passes
+10. Documentation ready for public release
 
 ---
 

@@ -5,6 +5,7 @@ import { TmdbClient } from "./client.js";
 import { PlexClient } from "../plex/client.js";
 import { RadarrClient } from "../radarr/client.js";
 import { formatErrorResponse } from "../../shared/errors.js";
+import { ProviderNotConfiguredError } from "../../providers/index.js";
 import type { CollectionPart, Movie, MovieWithLibraryStatus } from "./types.js";
 
 // ============================================================
@@ -204,7 +205,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   // tmdb_similar - Find similar movies to a given title
   server.tool(
     "tmdb_similar",
-    "Find movies similar to a given title. Can filter to show only movies not in your library.",
+    "Find movies similar to a given title. Can filter to show only movies not in your library. Optional: Plex (for missing_only filter).",
     {
       tmdb_id: z.coerce.number().describe("TMDB ID of the movie to find similar titles for"),
       missing_only: z
@@ -313,7 +314,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   // tmdb_recommendations - Get recommendations based on a movie
   server.tool(
     "tmdb_recommendations",
-    "Get movie recommendations based on a title. Can filter to show only movies not in your library.",
+    "Get movie recommendations based on a title. Can filter to show only movies not in your library. Optional: Plex (for missing_only filter).",
     {
       tmdb_id: z.coerce.number().describe("TMDB ID of the movie to get recommendations for"),
       missing_only: z
@@ -474,7 +475,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   // collection_status - Check completion status of a movie collection
   server.tool(
     "collection_status",
-    "Check how many movies from a collection you own. Shows completion status.",
+    "Check how many movies from a collection you own. Shows completion status. Requires: Plex.",
     {
       collection_id: z.coerce
         .number()
@@ -483,17 +484,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     async ({ collection_id }) => {
       try {
         if (!plexClient) {
-          return {
-            content: [
-              {
-                type: "text",
-                text:
-                  "Plex not configured. Cannot check library status.\n" +
-                  "Configure Plex to enable collection completion features.",
-              },
-            ],
-            isError: true,
-          };
+          throw new ProviderNotConfiguredError("plex");
         }
 
         const collection = await tmdbClient.getCollection(collection_id);
@@ -536,7 +527,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   // collection_missing - List missing movies from a collection
   server.tool(
     "collection_missing",
-    "List movies you're missing from a collection. Returns TMDB IDs for adding to Radarr.",
+    "List movies you're missing from a collection. Returns TMDB IDs for adding to Radarr. Requires: Plex.",
     {
       collection_id: z.coerce
         .number()
@@ -545,17 +536,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     async ({ collection_id }) => {
       try {
         if (!plexClient) {
-          return {
-            content: [
-              {
-                type: "text",
-                text:
-                  "Plex not configured. Cannot check library status.\n" +
-                  "Configure Plex to enable collection completion features.",
-              },
-            ],
-            isError: true,
-          };
+          throw new ProviderNotConfiguredError("plex");
         }
 
         const collection = await tmdbClient.getCollection(collection_id);
@@ -616,7 +597,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   // collection_add_missing - Add missing collection items to Radarr
   server.tool(
     "collection_add_missing",
-    "Add missing movies from a collection to Radarr. Requires confirmation.",
+    "Add missing movies from a collection to Radarr. Requires confirmation. Requires: Plex, Radarr.",
     {
       collection_id: z.coerce
         .number()
@@ -647,27 +628,11 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
         }
 
         if (!plexClient) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Plex not configured. Cannot determine which movies are missing.",
-              },
-            ],
-            isError: true,
-          };
+          throw new ProviderNotConfiguredError("plex");
         }
 
         if (!radarrClient) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Radarr not configured. Cannot add movies.",
-              },
-            ],
-            isError: true,
-          };
+          throw new ProviderNotConfiguredError("radarr");
         }
 
         const collection = await tmdbClient.getCollection(collection_id);

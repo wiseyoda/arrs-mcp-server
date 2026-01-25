@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
+import { ProviderRegistry } from "./providers/index.js";
 import { registerSonarrTools } from "./services/sonarr/tools.js";
 import { registerRadarrTools } from "./services/radarr/tools.js";
 import { registerPlexTools } from "./services/plex/tools.js";
@@ -19,6 +20,9 @@ const server = new McpServer({
 async function main() {
   // Load configuration
   const config = loadConfig();
+
+  // Build provider registry
+  const registry = new ProviderRegistry(config);
 
   // Register tools
   if (config.sonarr) {
@@ -39,7 +43,7 @@ async function main() {
   if (config.tmdb) {
     registerTmdbTools(server, config);
   }
-  registerSystemTools(server, config);
+  registerSystemTools(server, config, registry);
 
   // Connect via stdio transport
   const transport = new StdioServerTransport();

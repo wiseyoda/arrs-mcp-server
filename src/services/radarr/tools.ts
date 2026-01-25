@@ -2,8 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
 import { RadarrClient } from "./client.js";
-import { formatErrorResponse, ArrsError } from "../../shared/errors.js";
-import type { MovieLookup, QueueItem, Movie } from "./types.js";
+import { formatErrorResponse } from "../../shared/errors.js";
+import { ProviderNotConfiguredError } from "../../providers/index.js";
+import type { MovieLookup, QueueItem, Movie, MovieFile } from "./types.js";
 
 // Quality routing helper - routes to HD (default) or 4K based on quality parameter
 function getRadarrClient(
@@ -12,14 +13,12 @@ function getRadarrClient(
 ): RadarrClient {
   if (quality === "4k") {
     if (!config.radarr4k) {
-      throw new ArrsError(
-        "Radarr4K not configured. Cannot process 4K request.",
-      );
+      throw new ProviderNotConfiguredError("radarr4k");
     }
     return new RadarrClient(config.radarr4k, "Radarr4K");
   }
   if (!config.radarr) {
-    throw new ArrsError("Radarr not configured.");
+    throw new ProviderNotConfiguredError("radarr");
   }
   return new RadarrClient(config.radarr, "Radarr");
 }
@@ -67,6 +66,7 @@ function formatMovie(
     show_rating?: boolean;
     show_runtime?: boolean;
     show_added?: boolean;
+    show_file_details?: boolean;
   } = {},
 ): string {
   const statusText =
@@ -103,7 +103,52 @@ function formatMovie(
     line += ` [${extras.join(", ")}]`;
   }
 
+  // Enhanced file details if available and requested
+  if (options.show_file_details && movie.movieFile) {
+    line += formatMovieFileInfo(movie.movieFile);
+  }
+
   return line;
+}
+
+function formatMovieFileInfo(file: MovieFile): string {
+  const parts: string[] = [];
+
+  // Quality
+  if (file.quality?.quality?.name) {
+    parts.push(file.quality.quality.name);
+  }
+
+  // Size
+  if (file.size) {
+    parts.push(formatBytes(file.size));
+  }
+
+  // Release group
+  if (file.releaseGroup) {
+    parts.push(file.releaseGroup);
+  }
+
+  // Video codec from mediaInfo
+  if (file.mediaInfo?.videoCodec) {
+    parts.push(file.mediaInfo.videoCodec);
+  }
+
+  // Audio format from mediaInfo
+  if (file.mediaInfo?.audioCodec) {
+    let audioInfo = file.mediaInfo.audioCodec;
+    if (file.mediaInfo.audioChannels) {
+      audioInfo += ` ${file.mediaInfo.audioChannels}ch`;
+    }
+    parts.push(audioInfo);
+  }
+
+  // HDR info if available
+  if (file.mediaInfo?.videoDynamicRangeType) {
+    parts.push(file.mediaInfo.videoDynamicRangeType);
+  }
+
+  return parts.length > 0 ? `\n   File: ${parts.join(" | ")}` : "";
 }
 
 export function registerRadarrTools(server: McpServer, config: Config): void {
@@ -669,7 +714,7 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
         const client = getRadarrClient(quality, config);
         const movie = await client.getMovie(movie_id);
 
-        const output = [
+        const outputParts = [
           `${movie.title} (${movie.year})`,
           `Status: ${movie.status}`,
           `Studio: ${movie.studio || "Unknown"}`,
@@ -680,17 +725,40 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
           "Statistics:",
           `  Runtime: ${movie.runtime} minutes`,
           `  Size: ${formatBytes(movie.sizeOnDisk)}`,
-          "",
-          `TMDB: ${movie.tmdbId}`,
-          movie.imdbId ? `IMDB: ${movie.imdbId}` : "",
-          "",
-          movie.overview || "",
-        ]
-          .filter(Boolean)
-          .join("\n");
+        ];
+
+        // Enhanced file details if file exists
+        if (movie.movieFile) {
+          outputParts.push("");
+          outputParts.push("File Details:");
+          if (movie.movieFile.quality?.quality?.name) {
+            outputParts.push(`  Quality: ${movie.movieFile.quality.quality.name}`);
+          }
+          if (movie.movieFile.releaseGroup) {
+            outputParts.push(`  Release Group: ${movie.movieFile.releaseGroup}`);
+          }
+          if (movie.movieFile.mediaInfo) {
+            const mi = movie.movieFile.mediaInfo;
+            if (mi.videoCodec) {
+              outputParts.push(`  Video: ${mi.videoCodec}${mi.videoDynamicRangeType ? ` (${mi.videoDynamicRangeType})` : ""}`);
+            }
+            if (mi.audioCodec) {
+              outputParts.push(`  Audio: ${mi.audioCodec}${mi.audioChannels ? ` ${mi.audioChannels}ch` : ""}`);
+            }
+            if (mi.resolution) {
+              outputParts.push(`  Resolution: ${mi.resolution}`);
+            }
+          }
+        }
+
+        outputParts.push("");
+        outputParts.push(`TMDB: ${movie.tmdbId}`);
+        if (movie.imdbId) outputParts.push(`IMDB: ${movie.imdbId}`);
+        outputParts.push("");
+        if (movie.overview) outputParts.push(movie.overview);
 
         return {
-          content: [{ type: "text", text: output }],
+          content: [{ type: "text", text: outputParts.filter(Boolean).join("\n") }],
         };
       } catch (error) {
         return {

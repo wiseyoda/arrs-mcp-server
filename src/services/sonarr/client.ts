@@ -4,6 +4,7 @@ import type {
   Series,
   SeriesLookup,
   Episode,
+  EpisodeFile,
   QueueItem,
   QueuePage,
   QualityProfile,
@@ -54,6 +55,38 @@ export class SonarrClient {
 
   async getEpisodes(seriesId: number): Promise<Episode[]> {
     return this.http.get<Episode[]>(`/episode?seriesId=${seriesId}`);
+  }
+
+  /**
+   * Get episode files for a series with quality, size, and release info.
+   */
+  async getEpisodeFiles(seriesId: number): Promise<EpisodeFile[]> {
+    return this.http.get<EpisodeFile[]>(`/episodefile?seriesId=${seriesId}`);
+  }
+
+  /**
+   * Get a single episode file by ID with detailed media information.
+   */
+  async getEpisodeFile(id: number): Promise<EpisodeFile> {
+    return this.http.get<EpisodeFile>(`/episodefile/${id}`);
+  }
+
+  /**
+   * Get episodes with their file details populated.
+   * Fetches episodes and episode files separately, then merges them.
+   */
+  async getEpisodesWithFiles(seriesId: number): Promise<Episode[]> {
+    const [episodes, files] = await Promise.all([
+      this.getEpisodes(seriesId),
+      this.getEpisodeFiles(seriesId),
+    ]);
+
+    const fileMap = new Map(files.map((f) => [f.id, f]));
+
+    return episodes.map((ep) => ({
+      ...ep,
+      episodeFile: ep.episodeFileId ? fileMap.get(ep.episodeFileId) : undefined,
+    }));
   }
 
   // Queue operations
