@@ -40,7 +40,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 0060 | overseerr | ✅ Complete | Request management, user management, discovery |
 | 0070 | discovery-engine | ✅ Complete | TMDB + Trakt + Letterboxd integration |
 | 0080 | provider-cleanup | ✅ Complete | Provider registry, discovery tool, API hardening |
-| 0090 | library-intelligence | ⬜ Not Started | Cross-service consistency, orphan detection (stateless) |
+| 0090 | library-intelligence | ✅ Complete | Cross-service consistency, orphan detection (stateless) |
 | 0100 | documentation | ⬜ Not Started | README overhaul, tool catalog, troubleshooting guide |
 | 0110 | testing-hardening | ⬜ Not Started | **USER GATE**: Tests, CI/CD, public release ready |
 
