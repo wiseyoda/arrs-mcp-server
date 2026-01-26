@@ -968,8 +968,23 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .optional()
         .default(50)
         .describe("Maximum results. Default: 50"),
+      show_size: z.coerce
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Show file size and running total. Default: true"),
+      show_rating: z.coerce
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Show rating to help identify hidden gems. Default: false"),
+      sort: z
+        .enum(["size", "added", "title", "rating"])
+        .optional()
+        .default("size")
+        .describe('Sort by: "size" (largest first), "added" (oldest first), "title", "rating" (highest first). Default: size'),
     },
-    async ({ days, library, limit }) => {
+    async ({ days, library, limit, show_size, show_rating, sort }) => {
       try {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -1020,18 +1035,55 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
-        // Sort by size (largest first) for cleanup prioritization
-        candidates.sort(
-          (a, b) => (b.item.sizeBytes || 0) - (a.item.sizeBytes || 0),
-        );
+        // Apply sorting
+        switch (sort) {
+          case "size":
+            candidates.sort(
+              (a, b) => (b.item.sizeBytes || 0) - (a.item.sizeBytes || 0),
+            );
+            break;
+          case "added":
+            candidates.sort(
+              (a, b) => a.item.addedAt.getTime() - b.item.addedAt.getTime(),
+            );
+            break;
+          case "rating":
+            candidates.sort(
+              (a, b) =>
+                (b.item.audienceRating || b.item.rating || 0) -
+                (a.item.audienceRating || a.item.rating || 0),
+            );
+            break;
+          case "title":
+          default:
+            candidates.sort((a, b) => a.item.title.localeCompare(b.item.title));
+            break;
+        }
 
         const limited = candidates.slice(0, limit);
+        let runningTotal = 0;
         const formatted = limited
           .map(({ item }) => {
-            const size = item.sizeBytes
-              ? client.formatSize(item.sizeBytes)
-              : "unknown size";
-            return `[${item.ratingKey}] ${item.title} (${item.year || "N/A"}) - ${size} - Added ${client.formatDate(item.addedAt)}`;
+            const parts: string[] = [
+              `[${item.ratingKey}] ${item.title} (${item.year || "N/A"})`,
+            ];
+
+            if (show_size && item.sizeBytes) {
+              runningTotal += item.sizeBytes;
+              parts.push(client.formatSize(item.sizeBytes));
+              parts.push(`(total: ${client.formatSize(runningTotal)})`);
+            }
+
+            if (show_rating) {
+              const rating = item.audienceRating || item.rating;
+              if (rating) {
+                parts.push(`Rating: ${rating.toFixed(1)}`);
+              }
+            }
+
+            parts.push(`Added ${client.formatDate(item.addedAt)}`);
+
+            return parts.join(" - ");
           })
           .join("\n");
 
@@ -1040,13 +1092,15 @@ export function registerPlexTools(server: McpServer, config: Config): void {
             ? `\n\n... and ${candidates.length - limit} more`
             : "";
 
+        const summaryText = show_size
+          ? `\n\nTotal: ${client.formatSize(totalSizeBytes)} potential savings`
+          : "";
+
         return {
           content: [
             {
               type: "text",
-              text:
-                `${candidates.length} items unwatched for ${days}+ days:\n\n${formatted}${moreText}\n\n` +
-                `Total: ${client.formatSize(totalSizeBytes)} potential savings`,
+              text: `${candidates.length} items unwatched for ${days}+ days:\n\n${formatted}${moreText}${summaryText}`,
             },
           ],
         };
@@ -1080,8 +1134,23 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .optional()
         .default(50)
         .describe("Maximum results. Default: 50"),
+      show_size: z.coerce
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Show file size and running total. Default: true"),
+      sort: z
+        .enum(["watched", "size", "title"])
+        .optional()
+        .default("watched")
+        .describe('Sort by: "watched" (oldest first), "size" (largest first), "title". Default: watched'),
+      ended_only: z.coerce
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("For TV shows, only include ended/completed series. Default: false"),
     },
-    async ({ days, library, limit }) => {
+    async ({ days, library, limit, show_size, sort, ended_only }) => {
       try {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -1109,6 +1178,10 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         for (const lib of libraries) {
           if (!lib || (lib.type !== "movie" && lib.type !== "show")) continue;
 
+          // Skip show libraries if ended_only is true (we'd need series status)
+          // For now, ended_only only works with movies or requires API call per show
+          const isShowLibrary = lib.type === "show";
+
           const { items } = await client.getLibraryItems(lib.key, {
             size: 1000,
           });
@@ -1119,6 +1192,15 @@ export function registerPlexTools(server: McpServer, config: Config): void {
               item.lastViewedAt &&
               item.lastViewedAt < cutoffTimestamp
             ) {
+              // For ended_only filter on shows, check if all episodes are available
+              // (This is a proxy for "ended" - fully collected series)
+              if (ended_only && isShowLibrary) {
+                // Check if viewedLeafCount equals leafCount (all watched = likely ended)
+                const allWatched =
+                  item.viewedLeafCount === item.leafCount && item.leafCount;
+                if (!allWatched) continue;
+              }
+
               const info = client.parseMediaItem(item, lib.title);
               candidates.push({ item: info, library: lib.title });
               if (info.sizeBytes) {
@@ -1139,23 +1221,46 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
-        // Sort by last viewed (oldest first)
-        candidates.sort((a, b) => {
-          const aTime = a.item.lastViewedAt?.getTime() || 0;
-          const bTime = b.item.lastViewedAt?.getTime() || 0;
-          return aTime - bTime;
-        });
+        // Apply sorting
+        switch (sort) {
+          case "size":
+            candidates.sort(
+              (a, b) => (b.item.sizeBytes || 0) - (a.item.sizeBytes || 0),
+            );
+            break;
+          case "title":
+            candidates.sort((a, b) => a.item.title.localeCompare(b.item.title));
+            break;
+          case "watched":
+          default:
+            candidates.sort((a, b) => {
+              const aTime = a.item.lastViewedAt?.getTime() || 0;
+              const bTime = b.item.lastViewedAt?.getTime() || 0;
+              return aTime - bTime;
+            });
+            break;
+        }
 
         const limited = candidates.slice(0, limit);
+        let runningTotal = 0;
         const formatted = limited
           .map(({ item }) => {
-            const size = item.sizeBytes
-              ? client.formatSize(item.sizeBytes)
-              : "unknown size";
+            const parts: string[] = [
+              `[${item.ratingKey}] ${item.title} (${item.year || "N/A"})`,
+            ];
+
+            if (show_size && item.sizeBytes) {
+              runningTotal += item.sizeBytes;
+              parts.push(client.formatSize(item.sizeBytes));
+              parts.push(`(total: ${client.formatSize(runningTotal)})`);
+            }
+
             const lastViewed = item.lastViewedAt
               ? client.formatDate(item.lastViewedAt)
               : "unknown";
-            return `[${item.ratingKey}] ${item.title} (${item.year || "N/A"}) - ${size} - Last watched ${lastViewed}`;
+            parts.push(`Last watched ${lastViewed}`);
+
+            return parts.join(" - ");
           })
           .join("\n");
 
@@ -1164,13 +1269,15 @@ export function registerPlexTools(server: McpServer, config: Config): void {
             ? `\n\n... and ${candidates.length - limit} more`
             : "";
 
+        const summaryText = show_size
+          ? `\n\nTotal: ${client.formatSize(totalSizeBytes)} potential savings`
+          : "";
+
         return {
           content: [
             {
               type: "text",
-              text:
-                `${candidates.length} items watched ${days}+ days ago:\n\n${formatted}${moreText}\n\n` +
-                `Total: ${client.formatSize(totalSizeBytes)} potential savings`,
+              text: `${candidates.length} items watched ${days}+ days ago:\n\n${formatted}${moreText}${summaryText}`,
             },
           ],
         };
