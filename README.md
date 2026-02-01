@@ -1,115 +1,44 @@
 # arrs-mcp-server
 
-MCP server for managing Sonarr, Radarr, Plex, Sabnzbd, Overseerr, and TMDB through Claude.
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets Claude manage your media stack -- Sonarr, Radarr, Plex, SABnzbd, Overseerr, and TMDB -- through natural conversation.
 
-## Features
+Ask Claude to add a show, check what's downloading, clean up your library, or complete a movie franchise. The server translates your requests into the right API calls across all your services.
 
-- **TV Show Management** (Sonarr): Search, add, list, and manage TV series
-- **Movie Management** (Radarr): Search, add, list movies with HD/4K quality routing
-- **Library Management** (Plex): Browse, search, and manage your media library
-- **Download Management** (Sabnzbd): Monitor queue, pause/resume, manage downloads
-- **Request Management** (Overseerr): Approve/decline requests, manage users, track issues
-- **Discovery & Collections** (TMDB): Find missing movies from franchises, get recommendations
-- **System Health**: Check service connectivity and identify issues
-- **Cleanup Analysis**: Find unwatched content, duplicates, and cleanup opportunities
-- **Natural Language**: Tools designed for intuitive Claude interaction
+## Quick Start
 
-## Installation
+**Prerequisites**: Node.js 20+ and pnpm.
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/arrs-mcp-server.git
 cd arrs-mcp-server
-
-# Install dependencies
 pnpm install
-
-# Build
 pnpm build
 ```
 
-## Configuration
-
-### Option 1: Environment Variables (Recommended for secrets)
-
-```bash
-# Sonarr
-export SONARR_URL="http://localhost:8989"
-export SONARR_API_KEY="your-api-key"
-
-# Radarr (HD)
-export RADARR_URL="http://localhost:7878"
-export RADARR_API_KEY="your-api-key"
-
-# Radarr (4K) - optional
-export RADARR4K_URL="http://localhost:7879"
-export RADARR4K_API_KEY="your-api-key"
-
-# Plex
-export PLEX_URL="http://localhost:32400"
-export PLEX_TOKEN="your-token"
-
-# Sabnzbd
-export SABNZBD_URL="http://localhost:8080"
-export SABNZBD_API_KEY="your-api-key"
-
-# Overseerr
-export OVERSEERR_URL="http://localhost:5055"
-export OVERSEERR_API_KEY="your-api-key"
-
-# TMDB (for collection and recommendation features)
-export TMDB_API_KEY="your-api-key"
-```
-
-### Option 2: Config File
-
-Create `config.json` in the project root:
+Create a `config.json` in the project root with at least one service:
 
 ```json
 {
   "sonarr": {
     "url": "http://localhost:8989",
-    "apiKey": "your-api-key"
-  },
-  "radarr": {
-    "url": "http://localhost:7878",
-    "apiKey": "your-api-key"
-  },
-  "radarr4k": {
-    "url": "http://localhost:7879",
-    "apiKey": "your-api-key"
-  },
-  "plex": {
-    "url": "http://localhost:32400",
-    "token": "your-token"
-  },
-  "sabnzbd": {
-    "url": "http://localhost:8080",
-    "apiKey": "your-api-key"
-  },
-  "overseerr": {
-    "url": "http://localhost:5055",
-    "apiKey": "your-api-key"
-  },
-  "tmdb": {
-    "apiKey": "your-api-key"
+    "apiKey": "your-sonarr-api-key"
   }
 }
 ```
 
-See `config.example.json` for all available options.
+That's enough to start. Add more services as you go -- see [Configuration](docs/configuration.md) for all options.
 
-### Finding Your API Keys
+## Connect to Claude
 
-- **Sonarr/Radarr**: Settings → General → Security → API Key
-- **Plex**: [Finding your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
-- **Sabnzbd**: Config → General → API Key
-- **Overseerr**: Settings → General → API Key
-- **TMDB**: Sign up at [themoviedb.org](https://www.themoviedb.org/settings/api) and request an API key
+### Claude Desktop
 
-## Claude Desktop Setup
+Add the server to your Claude Desktop config file:
 
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+| OS | Config file path |
+|----|------------------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
 
 ```json
 {
@@ -119,27 +48,22 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
       "args": ["/absolute/path/to/arrs-mcp-server/dist/index.js"],
       "env": {
         "SONARR_URL": "http://localhost:8989",
-        "SONARR_API_KEY": "your-api-key",
+        "SONARR_API_KEY": "your-sonarr-api-key",
         "RADARR_URL": "http://localhost:7878",
-        "RADARR_API_KEY": "your-api-key",
+        "RADARR_API_KEY": "your-radarr-api-key",
         "PLEX_URL": "http://localhost:32400",
-        "PLEX_TOKEN": "your-token",
-        "SABNZBD_URL": "http://localhost:8080",
-        "SABNZBD_API_KEY": "your-api-key",
-        "OVERSEERR_URL": "http://localhost:5055",
-        "OVERSEERR_API_KEY": "your-api-key",
-        "TMDB_API_KEY": "your-api-key"
+        "PLEX_TOKEN": "your-plex-token"
       }
     }
   }
 }
 ```
 
-Restart Claude Desktop after adding the configuration.
+Restart Claude Desktop after saving.
 
-## Claude Code Setup
+### Claude Code
 
-Add to your Claude Code settings (`.claude/settings.json` or via the settings UI):
+Add to your project settings (`.claude/settings.json`) or user settings (`~/.claude/settings.json`):
 
 ```json
 {
@@ -149,230 +73,98 @@ Add to your Claude Code settings (`.claude/settings.json` or via the settings UI
       "args": ["/absolute/path/to/arrs-mcp-server/dist/index.js"],
       "env": {
         "SONARR_URL": "http://localhost:8989",
-        "SONARR_API_KEY": "your-api-key"
+        "SONARR_API_KEY": "your-sonarr-api-key"
       }
     }
   }
 }
 ```
 
-## Available Tools
+Include only the environment variables for services you use. See the full [environment variable reference](docs/configuration.md#environment-variable-reference).
 
-### Cross-Service Tools
+## What You Can Do
 
-| Tool | Description |
-|------|-------------|
-| `system_health` | Check health of all configured services (use `verbose:true` for details) |
-| `downloads_status` | Unified download status across all services |
-| `cleanup_analysis` | Find cleanup opportunities: unwatched, duplicates, ended series |
-| `media_help` | Get help and list available tools |
+88 tools across 7 services. You don't need to know tool names -- just describe what you want.
 
-### TV Show Tools (Sonarr)
+**Manage TV shows and movies**
+- "Add Breaking Bad to Sonarr"
+- "Add Inception to my movies in 4K"
+- "What movies do I have?"
 
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `tv_search` | Search for TV series by name |
-| `tv_add` | Add a TV series to Sonarr |
-| `tv_list` | List all TV series with filtering, sorting, pagination |
-| `tv_episodes` | View episode status for a series |
-| `tv_search_missing` | Trigger search for missing episodes |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `sonarr_queue` | View download queue with progress |
-| `sonarr_details` | Get detailed series information |
-| `sonarr_delete` | Remove a series from Sonarr |
-| `sonarr_profiles` | List available quality profiles |
-| `sonarr_folders` | List root folders |
-| `sonarr_stuck` | Find items stuck importing |
-| `sonarr_import` | Trigger manual import |
-| `sonarr_blacklist` | Blacklist a release and re-search |
-| `sonarr_calendar` | View upcoming episodes |
-
-#### Extended Tools
-
-| Tool | Description |
-|------|-------------|
-| `sonarr_rename` | Rename episode files using naming rules |
-| `sonarr_refresh` | Refresh series metadata from TVDB |
-| `sonarr_upcoming` | Show upcoming episodes with details |
-
-### Movie Tools (Radarr)
-
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `movie_search` | Search for movies by name (supports IMDB ID) |
-| `movie_add` | Add a movie to Radarr (use `quality:'hd'` or `quality:'4k'`) |
-| `movie_list` | List all movies with filtering, sorting, pagination |
-| `movie_upgrade` | Search for quality upgrades |
-| `movie_delete` | Remove a movie from Radarr |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `radarr_queue` | View download queue with progress |
-| `radarr_details` | Get detailed movie information |
-| `radarr_profiles` | List available quality profiles |
-| `radarr_folders` | List root folders |
-| `radarr_stuck` | Find items stuck importing |
-| `radarr_import` | Trigger manual import |
-| `radarr_blacklist` | Blacklist a release and re-search |
-
-#### Extended Tools
-
-| Tool | Description |
-|------|-------------|
-| `radarr_rename` | Rename movie files using naming rules |
-| `radarr_refresh` | Refresh movie metadata |
-| `radarr_discover` | Get movie recommendations |
-
-### Library Tools (Plex)
-
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `library_list` | List all Plex libraries |
-| `library_search` | Search across libraries |
-| `library_watched` | Get watch status for items |
-| `library_list_movies` | List movies with filtering and sorting |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `plex_recent` | Recently added content |
-| `plex_refresh` | Trigger library scan |
-| `plex_unwatched` | Find old unwatched content |
-| `plex_watched_old` | Find old watched content |
-| `plex_delete` | Delete content (with confirmation) |
-
-#### Extended Tools
-
-| Tool | Description |
-|------|-------------|
-| `plex_collections` | List collections in libraries |
-| `plex_duplicates` | Find duplicate items |
-| `plex_optimize` | Trigger database optimization |
-
-### Download Tools (Sabnzbd)
-
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `downloads_queue` | View current download queue |
-| `downloads_history` | View download history |
-| `downloads_pause` | Pause all downloads |
-| `downloads_resume` | Resume all downloads |
-| `downloads_speed` | Set speed limit |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `sabnzbd_delete` | Delete a queue item |
-| `sabnzbd_failed` | List failed downloads |
-| `sabnzbd_retry` | Retry a failed download |
-| `sabnzbd_priority` | Change queue priority |
-| `sabnzbd_pause_item` | Pause specific item |
-| `sabnzbd_resume_item` | Resume specific item |
-| `sabnzbd_categories` | List download categories |
-
-#### Extended Tools
-
-| Tool | Description |
-|------|-------------|
-| `sabnzbd_quota` | Show quota usage and limits |
-| `sabnzbd_warnings` | Show system warnings |
-
-### Request Tools (Overseerr)
-
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `request_list` | List media requests with status filtering |
-| `request_approve` | Approve a pending request |
-| `request_decline` | Decline a request with optional reason |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `overseerr_request_details` | Get detailed request information |
-| `overseerr_request_delete` | Delete a request (requires confirmation) |
-| `overseerr_users` | List all Overseerr users |
-| `overseerr_user_requests` | View a user's request history |
-| `overseerr_user_quota` | Check user quota limits |
-| `overseerr_issues` | List reported issues |
-| `overseerr_issue_details` | Get detailed issue information |
-| `overseerr_issue_comment` | Add comment to an issue |
-| `overseerr_issue_resolve` | Mark an issue as resolved |
-| `overseerr_trending` | Get trending movies and TV shows |
-| `overseerr_upcoming` | Get upcoming movie releases |
-
-### Discovery Tools (TMDB)
-
-#### Semantic Tools (User-Facing)
-
-| Tool | Description |
-|------|-------------|
-| `collection_status` | Check how many movies from a franchise you own |
-| `collection_missing` | List missing movies from a collection |
-| `collection_add_missing` | Add missing collection items to Radarr |
-
-#### Admin Tools
-
-| Tool | Description |
-|------|-------------|
-| `tmdb_collection` | Look up a movie collection by name or ID |
-| `tmdb_similar` | Find movies similar to a given title |
-| `tmdb_recommendations` | Get recommendations based on a movie |
-| `tmdb_search` | Search TMDB for movies by title |
-
-## Example Usage
-
-Once configured, you can interact naturally with Claude:
-
-- "Add Breaking Bad to my TV library"
-- "What TV shows do I have?"
-- "Add Inception to my movie library in 4K"
+**Monitor downloads**
 - "What's downloading right now?"
-- "Are there any stuck imports?"
-- "Check system health"
-- "Find cleanup opportunities"
-- "Show me movies I haven't watched in over a year"
-- "Find duplicate movies in Plex"
 - "Pause all downloads"
-- "What requests are pending?"
-- "Approve the request for Inception"
-- "Show me trending movies"
-- "What issues have been reported?"
+- "Are there any stuck imports?"
+
+**Browse and clean your library**
+- "Show me movies I haven't watched in over a year"
+- "I need to free up 100 GB -- what should I delete?"
+- "Find duplicate movies"
+
+**Complete franchises**
 - "What MCU movies am I missing?"
-- "Find movies similar to Inception that I don't own"
-- "Show me the Star Wars collection"
-- "Add missing Marvel movies to Radarr"
+- "Add all missing Star Wars movies"
+
+**Handle requests**
+- "Any pending requests?"
+- "Approve the request for Oppenheimer"
+
+**Check system health**
+- "Is everything working?"
+- "Run a library audit"
+
+> **Safety by Default**: Movie tools route to your HD Radarr instance unless you explicitly say "in 4K" or pass `quality: '4k'`. This prevents accidental 4K downloads that consume large amounts of disk space.
+
+See [Example Conversations](docs/examples.md) for complete workflows.
+
+## Features
+
+| Service | What it does | Tool count |
+|---------|-------------|------------|
+| **Sonarr** | Search, add, and manage TV series. Monitor episodes, check calendars, handle stuck imports. | 17 |
+| **Radarr** | Search, add, and manage movies. Supports dual HD/4K instances with safe quality routing. | 15 |
+| **Plex** | Browse libraries, check watch status, find unwatched content, manage collections, delete items. | 12 |
+| **SABnzbd** | Monitor download queue, pause/resume, manage priorities, handle failures. | 14 |
+| **Overseerr** | List, approve, and decline requests. Manage users, quotas, issues. Browse trending titles. | 14 |
+| **TMDB** | Look up franchises, find similar movies, get recommendations. Identify missing collection items. | 7 |
+| **Cross-service** | System health, unified download status, cleanup analysis, library audit, space planning, watch analytics. | 9 |
+
+Only configured services register their tools. If you only set up Sonarr and Plex, you get 29 tools instead of 88.
+
+Browse the full [Tool Catalog](docs/tools.md) for parameters, examples, and cross-references.
+
+## Configuration
+
+Two ways to configure:
+
+1. **config.json** in your working directory (or a custom path via `CONFIG_PATH`)
+2. **Environment variables** for each service
+
+Environment variables take precedence per-service. You only need one service to start.
+
+See [Configuration Reference](docs/configuration.md) for all 7 services, Docker setup, and precedence rules.
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Configuration](docs/configuration.md) | All services, environment variables, Docker, precedence rules |
+| [Tool Catalog](docs/tools.md) | All 88 tools with parameters, examples, and cross-references |
+| [Example Conversations](docs/examples.md) | 7 real workflows showing multi-step tool usage |
+| [Troubleshooting](docs/troubleshooting.md) | 16+ error scenarios with causes and fixes |
+| [CLAUDE.md](CLAUDE.md) | Architecture and development guide for contributors |
 
 ## Development
 
 ```bash
-# Build
-pnpm build
-
-# Type check
-pnpm typecheck
-
-# Watch mode
-pnpm dev
+pnpm build        # Compile TypeScript
+pnpm typecheck    # Type check without emitting
+pnpm dev          # Watch mode
+pnpm lint         # ESLint
+pnpm format       # Prettier
 ```
+
+See [CLAUDE.md](CLAUDE.md) for architecture, patterns, and how to add new tools or services.
 
 ## License
 
