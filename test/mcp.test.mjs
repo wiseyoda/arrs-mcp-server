@@ -192,7 +192,9 @@ test("compiled entrypoint initializes over stdio with Seerr configuration", asyn
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [resolve("dist/index.js")],
-    cwd: dir,
+    // No cwd: on Windows a live child locks its working directory, so pointing
+    // it at the temp dir makes the teardown rmdir fail with EBUSY. The server
+    // reads config from the absolute CONFIG_PATH env, so cwd is unnecessary.
     env: { PATH: process.env.PATH, CONFIG_PATH: path },
     stderr: "pipe",
   });
