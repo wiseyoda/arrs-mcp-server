@@ -1,3 +1,5 @@
+import { extractPlexIds, normalizeTitle } from "../../shared/matching.js";
+import { booleanParam } from "../../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
@@ -30,25 +32,33 @@ async function matchAgainstLibrary(
     let found = false;
     let ratingKey: string | undefined;
 
-    try {
+    {
       // Search Plex for the movie title
       const searchResults = await plexClient.searchAll(movie.title);
-      const movieResults = searchResults.get("Movies") || [];
+      const movieResults = [...searchResults.values()]
+        .flat()
+        .filter((item) => item.type === "movie");
 
       // Check if any result matches the year (within 1 year tolerance for release date differences)
       for (const result of movieResults) {
         const resultYear = result.year?.toString() || "";
-        const yearMatch = !year || !resultYear ||
+        const yearMatch =
+          !year ||
+          !resultYear ||
           Math.abs(parseInt(year) - parseInt(resultYear)) <= 1;
 
-        if (yearMatch) {
+        const ids = extractPlexIds(result.guid, result.Guid);
+        const matched =
+          ids.tmdbId !== undefined
+            ? ids.tmdbId === movie.id
+            : normalizeTitle(result.title) === normalizeTitle(movie.title) &&
+              yearMatch;
+        if (matched) {
           found = true;
           ratingKey = result.ratingKey;
           break;
         }
       }
-    } catch {
-      // If search fails, mark as not found
     }
 
     results.push({
@@ -63,14 +73,18 @@ async function matchAgainstLibrary(
 
 function formatMovieWithStatus(movie: MovieWithLibraryStatus): string {
   const year = movie.release_date ? movie.release_date.split("-")[0] : "TBD";
-  const rating = movie.vote_average ? `${movie.vote_average.toFixed(1)}/10` : "N/A";
+  const rating = movie.vote_average
+    ? `${movie.vote_average.toFixed(1)}/10`
+    : "N/A";
   const status = movie.inLibrary ? "✓ Owned" : "✗ Missing";
   return `${movie.title} (${year}) - ${status}\n   TMDB ID: ${movie.id} | Rating: ${rating}`;
 }
 
 function formatMovie(movie: Movie): string {
   const year = movie.release_date ? movie.release_date.split("-")[0] : "TBD";
-  const rating = movie.vote_average ? `${movie.vote_average.toFixed(1)}/10` : "N/A";
+  const rating = movie.vote_average
+    ? `${movie.vote_average.toFixed(1)}/10`
+    : "N/A";
   const overview = movie.overview
     ? `\n   ${movie.overview.slice(0, 150)}${movie.overview.length > 150 ? "..." : ""}`
     : "";
@@ -93,9 +107,7 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
   const plexClient = config.plex ? new PlexClient(config.plex) : null;
 
   // Radarr client for adding movies (optional)
-  const radarrClient = config.radarr
-    ? new RadarrClient(config.radarr)
-    : null;
+  const radarrClient = config.radarr ? new RadarrClient(config.radarr) : null;
 
   // ============================================================
   // Service Tools (Admin)
@@ -109,9 +121,14 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
       query: z
         .string()
         .optional()
-        .describe("Collection name to search for (e.g., 'Marvel Cinematic Universe')"),
+        .describe(
+          "Collection name to search for (e.g., 'Marvel Cinematic Universe')",
+        ),
       collection_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .optional()
         .describe("TMDB collection ID for direct lookup"),
     },
@@ -170,9 +187,13 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
         const collection = await tmdbClient.getCollection(collectionId!);
 
         const formatted = collection.parts
-          .sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""))
+          .sort((a, b) =>
+            (a.release_date || "").localeCompare(b.release_date || ""),
+          )
           .map((movie) => {
-            const year = movie.release_date ? movie.release_date.split("-")[0] : "TBD";
+            const year = movie.release_date
+              ? movie.release_date.split("-")[0]
+              : "TBD";
             const rating = movie.vote_average
               ? `${movie.vote_average.toFixed(1)}/10`
               : "N/A";
@@ -207,13 +228,20 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     "tmdb_similar",
     "Find movies similar to a given title. Can filter to show only movies not in your library. Optional: Plex (for missing_only filter).",
     {
-      tmdb_id: z.coerce.number().describe("TMDB ID of the movie to find similar titles for"),
-      missing_only: z
-        .boolean()
+      tmdb_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("TMDB ID of the movie to find similar titles for"),
+      missing_only: booleanParam()
         .optional()
         .describe("Only show movies NOT in your Plex library. Default: false"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(10)
         .describe("Maximum results to return. Default: 10"),
@@ -316,13 +344,20 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     "tmdb_recommendations",
     "Get movie recommendations based on a title. Can filter to show only movies not in your library. Optional: Plex (for missing_only filter).",
     {
-      tmdb_id: z.coerce.number().describe("TMDB ID of the movie to get recommendations for"),
-      missing_only: z
-        .boolean()
+      tmdb_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("TMDB ID of the movie to get recommendations for"),
+      missing_only: booleanParam()
         .optional()
         .describe("Only show movies NOT in your Plex library. Default: false"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(10)
         .describe("Maximum results to return. Default: 10"),
@@ -428,6 +463,9 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
       query: z.string().describe("Movie title to search for"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(10)
         .describe("Maximum results to return. Default: 10"),
@@ -479,6 +517,9 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     {
       collection_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .describe("TMDB collection ID (use tmdb_collection to find)"),
     },
     async ({ collection_id }) => {
@@ -531,6 +572,9 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     {
       collection_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .describe("TMDB collection ID (use tmdb_collection to find)"),
     },
     async ({ collection_id }) => {
@@ -601,10 +645,13 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
     {
       collection_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .describe("TMDB collection ID (use tmdb_collection to find)"),
-      confirm: z
-        .boolean()
-        .describe("Must be true to confirm adding movies. Required for safety."),
+      confirm: booleanParam().describe(
+        "Must be true to confirm adding movies. Required for safety.",
+      ),
       tmdb_ids: z
         .string()
         .optional()
@@ -666,7 +713,8 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
         const profiles = await radarrClient.getProfiles();
         const folders = await radarrClient.getRootFolders();
 
-        const defaultProfile = profiles.find((p) => p.name === "HD-1080p") || profiles[0];
+        const defaultProfile =
+          profiles.find((p) => p.name === "HD-1080p") || profiles[0];
         const defaultFolder = folders[0];
 
         if (!defaultProfile || !defaultFolder) {
@@ -696,7 +744,9 @@ export function registerTmdbTools(server: McpServer, config: Config): void {
             }
 
             // Look up movie details from Radarr
-            const lookupResults = await radarrClient.searchMovies(`tmdb:${movie.id}`);
+            const lookupResults = await radarrClient.searchMovies(
+              `tmdb:${movie.id}`,
+            );
             const movieInfo = lookupResults.find((m) => m.tmdbId === movie.id);
 
             if (!movieInfo) {

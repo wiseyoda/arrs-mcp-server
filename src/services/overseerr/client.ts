@@ -8,7 +8,6 @@ import type {
   Quota,
   Issue,
   IssuePage,
-  IssueComment,
   DiscoverPage,
 } from "./types.js";
 
@@ -17,9 +16,9 @@ export class OverseerrClient {
 
   constructor(config: ServiceConfig) {
     this.http = new HttpClient({
-      baseUrl: `${config.url}/api/v1`,
+      baseUrl: `${config.url.replace(/\/+$/, "")}/api/v1`,
       headers: { "X-Api-Key": config.apiKey },
-      serviceName: "Overseerr",
+      serviceName: "Seerr/Overseerr",
     });
   }
 
@@ -32,6 +31,33 @@ export class OverseerrClient {
     take: number = 20,
     skip: number = 0,
   ): Promise<RequestPage> {
+    // Seerr/Overseerr do not implement filter=declined; filter the complete inventory locally.
+    if (filter === "declined") {
+      const requests: Request[] = [];
+      let offset = 0;
+      let total: number;
+      do {
+        const page = await this.getRequests(undefined, 100, offset);
+        total = page.pageInfo.results;
+        if (!page.results.length && offset < total)
+          throw new Error(
+            "Request pagination ended before all records were returned.",
+          );
+        requests.push(
+          ...page.results.filter((request) => request.status === 3),
+        );
+        offset += page.results.length;
+      } while (offset < total);
+      return {
+        results: requests.slice(skip, skip + take),
+        pageInfo: {
+          pages: Math.ceil(requests.length / Math.max(1, take)),
+          pageSize: take,
+          results: requests.length,
+          page: Math.floor(skip / Math.max(1, take)) + 1,
+        },
+      };
+    }
     let path = `/request?take=${take}&skip=${skip}`;
     if (filter) {
       path += `&filter=${filter}`;
@@ -68,10 +94,18 @@ export class OverseerrClient {
   }
 
   async getUserRequests(userId: number): Promise<Request[]> {
-    const page = await this.http.get<RequestPage>(
-      `/user/${userId}/requests?take=100`,
-    );
-    return page.results;
+    const results: Request[] = [];
+    let total: number;
+    do {
+      const page = await this.http.get<RequestPage>(
+        `/user/${userId}/requests?take=100&skip=${results.length}`,
+      );
+      total = page.pageInfo.results;
+      if (!page.results.length && results.length < total)
+        throw new Error("User request pagination ended early.");
+      results.push(...page.results);
+    } while (results.length < total);
+    return results;
   }
 
   async getUserQuota(userId: number): Promise<Quota> {
@@ -98,8 +132,8 @@ export class OverseerrClient {
     return this.http.get<Issue>(`/issue/${id}`);
   }
 
-  async addIssueComment(id: number, message: string): Promise<IssueComment> {
-    return this.http.post<IssueComment>(`/issue/${id}/comment`, { message });
+  async addIssueComment(id: number, message: string): Promise<Issue> {
+    return this.http.post<Issue>(`/issue/${id}/comment`, { message });
   }
 
   async resolveIssue(id: number): Promise<Issue> {
@@ -114,13 +148,18 @@ export class OverseerrClient {
     mediaType?: "movie" | "tv",
     page: number = 1,
   ): Promise<DiscoverPage> {
-    if (mediaType === "movie") {
-      return this.http.get<DiscoverPage>(`/discover/movies?page=${page}`);
-    } else if (mediaType === "tv") {
-      return this.http.get<DiscoverPage>(`/discover/tv?page=${page}`);
-    }
-    // Return combined trending
-    return this.http.get<DiscoverPage>(`/discover/trending?page=${page}`);
+    const result = await this.http.get<DiscoverPage>(
+      `/discover/trending?page=${page}${mediaType ? `&mediaType=${mediaType}` : ""}`,
+    );
+    // Legacy Overseerr ignores mediaType, so enforce it locally as well.
+    return {
+      ...result,
+      results: result.results.filter(
+        (item) =>
+          (item.mediaType === "movie" || item.mediaType === "tv") &&
+          (!mediaType || item.mediaType === mediaType),
+      ),
+    };
   }
 
   async getUpcoming(page: number = 1): Promise<DiscoverPage> {

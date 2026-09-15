@@ -1,3 +1,10 @@
+import { SonarrClient } from "../sonarr/client.js";
+import {
+  buildSeriesIndex,
+  matchSeries,
+  extractPlexIds,
+} from "../../shared/matching.js";
+import { booleanParam } from "../../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
@@ -24,16 +31,21 @@ export function registerPlexTools(server: McpServer, config: Config): void {
       // Pagination (for consistency with other list tools)
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(100)
         .describe("Maximum results to return. Default: 100"),
       offset: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(0)
         .describe("Skip this many results for pagination. Default: 0"),
-      summary: z.coerce
-        .boolean()
+      summary: booleanParam()
         .optional()
         .describe("Only return counts without listing items"),
     },
@@ -124,16 +136,21 @@ export function registerPlexTools(server: McpServer, config: Config): void {
       // Pagination
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(20)
         .describe("Maximum results to return. Default: 20"),
       offset: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(0)
         .describe("Skip this many results for pagination. Default: 0"),
-      summary: z.coerce
-        .boolean()
+      summary: booleanParam()
         .optional()
         .describe("Only return counts without listing items"),
     },
@@ -346,6 +363,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .describe("Filter by watch status. Default: all"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(50)
         .describe("Maximum results. Default: 50"),
@@ -367,9 +387,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
-        const { items, totalSize } = await client.getLibraryItems(lib.key, {
-          size: 500,
-        });
+        const { items, totalSize } = await client.getAllLibraryItems(lib.key);
 
         let filtered = items;
         if (filter === "watched") {
@@ -445,13 +463,21 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .string()
         .optional()
         .describe("Filter by content rating (e.g., 'PG-13', 'R')"),
-      year: z.coerce.number().optional().describe("Filter by release year"),
+      year: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .optional()
+        .describe("Filter by release year"),
       year_min: z.coerce
         .number()
+        .finite()
         .optional()
         .describe("Filter by minimum release year"),
       year_max: z.coerce
         .number()
+        .finite()
         .optional()
         .describe("Filter by maximum release year"),
       country: z
@@ -474,16 +500,15 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .enum(["4k", "1080", "720", "sd"])
         .optional()
         .describe("Filter by video resolution"),
-      watched_only: z.coerce
-        .boolean()
+      watched_only: booleanParam()
         .optional()
         .describe("Only show watched movies"),
-      unwatched_only: z.coerce
-        .boolean()
+      unwatched_only: booleanParam()
         .optional()
         .describe("Only show unwatched movies"),
       watched_since_days: z.coerce
         .number()
+        .finite()
         .optional()
         .describe("Only movies watched in the last N days"),
       // Sorting
@@ -504,39 +529,34 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         ),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Limit number of results (e.g., top 10)"),
       // Display options
-      show_rating: z.coerce
-        .boolean()
+      show_rating: booleanParam()
         .optional()
         .describe("Include critic rating (RT) in output"),
-      show_audience_rating: z.coerce
-        .boolean()
+      show_audience_rating: booleanParam()
         .optional()
         .describe("Include audience rating in output"),
-      show_genre: z.coerce
-        .boolean()
+      show_genre: booleanParam()
         .optional()
         .describe("Include genres in output"),
-      show_director: z.coerce
-        .boolean()
+      show_director: booleanParam()
         .optional()
         .describe("Include director in output"),
-      show_runtime: z.coerce
-        .boolean()
+      show_runtime: booleanParam()
         .optional()
         .describe("Include runtime in output"),
-      show_size: z.coerce
-        .boolean()
+      show_size: booleanParam()
         .optional()
         .describe("Include file size in output"),
-      show_resolution: z.coerce
-        .boolean()
+      show_resolution: booleanParam()
         .optional()
         .describe("Include video resolution in output"),
-      show_added: z.coerce
-        .boolean()
+      show_added: booleanParam()
         .optional()
         .describe("Include date added in output"),
     },
@@ -810,6 +830,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .describe("Filter to specific library (optional)"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(20)
         .describe("Number of items to show. Default: 20"),
@@ -956,6 +979,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
     {
       days: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(365)
         .describe("Content added more than this many days ago. Default: 365"),
@@ -965,16 +991,17 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .describe("Filter to specific library (optional)"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(50)
         .describe("Maximum results. Default: 50"),
-      show_size: z.coerce
-        .boolean()
+      show_size: booleanParam()
         .optional()
         .default(true)
         .describe("Show file size and running total. Default: true"),
-      show_rating: z.coerce
-        .boolean()
+      show_rating: booleanParam()
         .optional()
         .default(false)
         .describe("Show rating to help identify hidden gems. Default: false"),
@@ -982,7 +1009,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .enum(["size", "added", "title", "rating"])
         .optional()
         .default("size")
-        .describe('Sort by: "size" (largest first), "added" (oldest first), "title", "rating" (highest first). Default: size'),
+        .describe(
+          'Sort by: "size" (largest first), "added" (oldest first), "title", "rating" (highest first). Default: size',
+        ),
     },
     async ({ days, library, limit, show_size, show_rating, sort }) => {
       try {
@@ -1120,6 +1149,9 @@ export function registerPlexTools(server: McpServer, config: Config): void {
     {
       days: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(180)
         .describe(
@@ -1131,11 +1163,13 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .describe("Filter to specific library (optional)"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(50)
         .describe("Maximum results. Default: 50"),
-      show_size: z.coerce
-        .boolean()
+      show_size: booleanParam()
         .optional()
         .default(true)
         .describe("Show file size and running total. Default: true"),
@@ -1143,12 +1177,15 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         .enum(["watched", "size", "title"])
         .optional()
         .default("watched")
-        .describe('Sort by: "watched" (oldest first), "size" (largest first), "title". Default: watched'),
-      ended_only: z.coerce
-        .boolean()
+        .describe(
+          'Sort by: "watched" (oldest first), "size" (largest first), "title". Default: watched',
+        ),
+      ended_only: booleanParam()
         .optional()
         .default(false)
-        .describe("For TV shows, only include ended/completed series. Default: false"),
+        .describe(
+          "For TV shows, only include ended/completed series. Default: false",
+        ),
     },
     async ({ days, library, limit, show_size, sort, ended_only }) => {
       try {
@@ -1169,6 +1206,17 @@ export function registerPlexTools(server: McpServer, config: Config): void {
           };
         }
 
+        let seriesIndex: ReturnType<typeof buildSeriesIndex> | undefined;
+        if (ended_only && libraries.some((lib) => lib?.type === "show")) {
+          if (!config.sonarr)
+            throw new Error(
+              "Sonarr is required to verify ended series; watch status cannot establish whether a series has ended.",
+            );
+          seriesIndex = buildSeriesIndex(
+            await new SonarrClient(config.sonarr).getAllSeries(),
+          );
+        }
+
         const candidates: Array<{
           item: ReturnType<typeof client.parseMediaItem>;
           library: string;
@@ -1178,27 +1226,29 @@ export function registerPlexTools(server: McpServer, config: Config): void {
         for (const lib of libraries) {
           if (!lib || (lib.type !== "movie" && lib.type !== "show")) continue;
 
-          // Skip show libraries if ended_only is true (we'd need series status)
-          // For now, ended_only only works with movies or requires API call per show
           const isShowLibrary = lib.type === "show";
 
-          const { items } = await client.getLibraryItems(lib.key, {
-            size: 1000,
-          });
+          const { items } = await client.getAllLibraryItems(lib.key);
           for (const item of items) {
             if (
-              item.viewCount &&
-              item.viewCount > 0 &&
+              (isShowLibrary
+                ? (item.viewedLeafCount ?? 0) > 0
+                : (item.viewCount ?? 0) > 0) &&
               item.lastViewedAt &&
               item.lastViewedAt < cutoffTimestamp
             ) {
-              // For ended_only filter on shows, check if all episodes are available
-              // (This is a proxy for "ended" - fully collected series)
-              if (ended_only && isShowLibrary) {
-                // Check if viewedLeafCount equals leafCount (all watched = likely ended)
-                const allWatched =
-                  item.viewedLeafCount === item.leafCount && item.leafCount;
-                if (!allWatched) continue;
+              if (ended_only && isShowLibrary && seriesIndex) {
+                const match = matchSeries(
+                  {
+                    ratingKey: item.ratingKey,
+                    title: item.title,
+                    year: item.year,
+                    type: "show",
+                    ...extractPlexIds(item.guid, item.Guid),
+                  },
+                  seriesIndex,
+                );
+                if (!match.matched || match.item?.status !== "ended") continue;
               }
 
               const info = client.parseMediaItem(item, lib.title);
@@ -1296,8 +1346,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
     "Delete media from Plex. WARNING: This permanently deletes files!",
     {
       rating_key: z.string().describe("The ratingKey of the item to delete"),
-      confirm: z
-        .boolean()
+      confirm: booleanParam()
         .optional()
         .describe("Must be true to confirm deletion. Required for safety."),
     },
@@ -1525,7 +1574,7 @@ export function registerPlexTools(server: McpServer, config: Config): void {
               text:
                 `${duplicates.length} duplicate groups found:\n\n${formatted}\n\n` +
                 `Total potential savings: ${client.formatSize(totalWastedBytes)} ` +
-                `(keeping highest quality copy of each)`,
+                `(estimate keeping the largest version of each). WARNING: plex_delete removes the whole item and ALL its versions, not an individual duplicate.`,
             },
           ],
         };

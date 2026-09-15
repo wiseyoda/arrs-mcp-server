@@ -1,7 +1,7 @@
 # arrs-mcp-server (active)
 
 MCP server for managing media services (Sonarr, Radarr, Plex, SABnzbd, Overseerr, TMDB) through
-Claude. `@modelcontextprotocol/sdk` + `zod` only, stdio transport. Node.js 20+, TypeScript strict,
+Claude. `@modelcontextprotocol/sdk` + `zod` only, stdio transport. Node.js 20.19+, TypeScript strict,
 ESM. Loaded as an MCP server in every Claude Code session on this machine — treat every command
 and trap here as load-bearing.
 
@@ -10,6 +10,7 @@ and trap here as load-bearing.
 ```bash
 pnpm typecheck && pnpm lint   # verify gate — run before committing
 pnpm build                    # tsc -> dist/
+pnpm test                     # build + isolated node:test / MCP fixtures
 pnpm dev                      # tsc --watch
 pnpm start                    # run the compiled server
 pnpm format                   # prettier
@@ -44,10 +45,11 @@ pnpm format                   # prettier
 
 ## Traps
 
-1. MCP transports send all params as strings -> plain `z.number()`/`z.boolean()` silently
-   mis-validate -> always use `z.coerce.number()` / `z.coerce.boolean()` on tool parameters.
-2. An uncaught tool error crashes the server (MCP framework doesn't catch) -> every handler
-   try/catches and returns `{ content, isError: true }` via `formatErrorResponse()`.
+1. MCP uses typed JSON, but some clients stringify arguments. Use `booleanParam()` from
+   `src/shared/params.ts` for booleans (never `z.coerce.boolean()`: `"false"` becomes true).
+   Use bounded `z.coerce.number()` for numeric tool parameters.
+2. Convert service failures into readable tool errors even when the SDK catches exceptions.
+   Every handler try/catches and returns `{ content, isError: true }` via `formatErrorResponse()`.
 3. `console.log()` writes to stdout, which is the MCP protocol channel -> corrupts the stream ->
    log only via `console.error()` (stderr).
 4. Local imports without `.js` fail Node16 module resolution at runtime -> always

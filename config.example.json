@@ -19,9 +19,9 @@
     "url": "http://localhost:8080",
     "apiKey": "your-sabnzbd-api-key"
   },
-  "overseerr": {
+  "seerr": {
     "url": "http://localhost:5055",
-    "apiKey": "your-overseerr-api-key"
+    "apiKey": "your-seerr-api-key"
   },
   "tmdb": {
     "apiKey": "your-tmdb-api-key"

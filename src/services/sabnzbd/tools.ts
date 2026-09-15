@@ -1,3 +1,4 @@
+import { booleanParam } from "../../shared/params.js";
 /**
  * Sabnzbd MCP Tools
  *
@@ -113,6 +114,9 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     {
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Number of history items to show (default: 20)"),
     },
@@ -197,10 +201,10 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     {
       speed: z.coerce
         .number()
+        .finite()
         .optional()
         .describe("Speed limit in MB/s (e.g., 10 for 10 MB/s)"),
-      unlimited: z
-        .boolean()
+      unlimited: booleanParam()
         .optional()
         .describe("Set to true to remove speed limit"),
     },
@@ -255,12 +259,23 @@ export function registerSabnzbdTools(server: McpServer, config: Config): void {
     "sabnzbd_delete",
     "Remove an item from the Sabnzbd download queue",
     {
+      confirm: booleanParam()
+        .optional()
+        .default(false)
+        .describe("Must be true to confirm queue removal."),
       nzo_id: z
         .string()
         .describe("The nzo_id of the item to delete (from downloads_queue)"),
     },
-    async ({ nzo_id }) => {
+    async ({ nzo_id, confirm }) => {
       try {
+        if (!confirm)
+          return {
+            content: [
+              { type: "text", text: "Queue removal requires confirm=true." },
+            ],
+            isError: true,
+          };
         // Find the item first to get its name
         const item = await client.findQueueItem(nzo_id);
         const itemName = item?.filename || nzo_id;

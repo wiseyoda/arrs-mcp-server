@@ -26,13 +26,7 @@ export type ProviderCapability =
  * Provider names supported by the system
  */
 export type ProviderName =
-  | "sonarr"
-  | "radarr"
-  | "radarr4k"
-  | "plex"
-  | "sabnzbd"
-  | "overseerr"
-  | "tmdb";
+  "sonarr" | "radarr" | "radarr4k" | "plex" | "sabnzbd" | "overseerr" | "tmdb";
 
 /**
  * Status of a provider including its configuration state and capabilities

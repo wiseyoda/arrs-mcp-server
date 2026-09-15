@@ -122,7 +122,7 @@ Example: adding Lidarr for music.
    export * from "./types.js";
    ```
 
-6. **Add config support** in `src/config.ts`: add `lidarr?: ServiceConfig` to the `Config` interface, env var loading in `getEnvConfig()` for `LIDARR_URL`/`LIDARR_API_KEY`, and validation in `validateConfig()`.
+6. **Add config support** in `src/config.ts`: add `lidarr?: ServiceConfig` to the `Config` interface, and add `lidarr` to `serviceNames` and `schemas`. The shared loader derives `LIDARR_URL`/`LIDARR_API_KEY` and validates merged fields.
 
 7. **Register in `src/index.ts`**:
    ```typescript
@@ -133,4 +133,8 @@ Example: adding Lidarr for music.
 
 8. **Add to provider registry** in `src/providers/`: add `"lidarr"` to `ProviderName` in `types.ts`, a definition in `PROVIDER_DEFINITIONS` and detection logic in `detectConfiguredProviders()` (`registry.ts`), and config info in `PROVIDER_CONFIG_INFO` (`errors.ts`).
 
-9. **Verify**: `pnpm typecheck && pnpm lint`.
+9. **Verify**: `pnpm typecheck && pnpm lint && pnpm test`.
+
+Use `booleanParam()` from `src/shared/params.ts` for tool booleans. MCP sends typed
+JSON, but legacy string booleans are also supported; never use truthiness coercion.
+Add regression fixtures in `test/` for each new service contract and safety gate.

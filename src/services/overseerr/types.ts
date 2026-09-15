@@ -3,7 +3,8 @@ export const RequestStatus = {
   PENDING: 1,
   APPROVED: 2,
   DECLINED: 3,
-  AVAILABLE: 4,
+  FAILED: 4,
+  COMPLETED: 5,
 } as const;
 
 export type RequestStatusValue =
@@ -71,15 +72,15 @@ export interface UserPage {
 
 export interface Quota {
   movie: {
-    limit: number;
+    limit?: number;
     used: number;
-    remaining: number;
+    remaining?: number;
     restricted: boolean;
   };
   tv: {
-    limit: number;
+    limit?: number;
     used: number;
-    remaining: number;
+    remaining?: number;
     restricted: boolean;
   };
 }

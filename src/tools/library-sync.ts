@@ -1,3 +1,4 @@
+import { booleanParam } from "../shared/params.js";
 /**
  * Library Sync Tool
  *
@@ -111,9 +112,7 @@ async function findOrphans(
   if (movieIndex) {
     const movieLibraries = libraries.filter((l) => l.type === "movie");
     for (const lib of movieLibraries) {
-      const { items } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items } = await plexClient.getAllLibraryItems(lib.key);
       for (const item of items) {
         const matchable = plexItemToMatchable(item, "movie");
         const result = matchMovie(matchable, movieIndex);
@@ -135,9 +134,7 @@ async function findOrphans(
   if (seriesIndex) {
     const showLibraries = libraries.filter((l) => l.type === "show");
     for (const lib of showLibraries) {
-      const { items } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items } = await plexClient.getAllLibraryItems(lib.key);
       for (const item of items) {
         const matchable = plexItemToMatchable(item, "show");
         const result = matchSeries(matchable, seriesIndex);
@@ -165,7 +162,7 @@ async function findOrphans(
 export function registerLibrarySyncTool(
   server: McpServer,
   config: Config,
-  _registry: ProviderRegistry,
+  registry: ProviderRegistry,
 ): void {
   server.tool(
     "library_sync",
@@ -174,13 +171,17 @@ export function registerLibrarySyncTool(
       type: z
         .enum(["orphans", "collection"])
         .describe('Sync type: "orphans" or "collection"'),
-      confirm: z
-        .boolean()
+      confirm: booleanParam()
         .optional()
         .default(false)
-        .describe("Set to true to execute sync. Default: false (dry-run preview)"),
-      collection_id: z
+        .describe(
+          "Set to true to execute sync. Default: false (dry-run preview)",
+        ),
+      collection_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .optional()
         .describe("TMDB collection ID (required for type=collection)"),
     },
@@ -198,16 +199,16 @@ export function registerLibrarySyncTool(
         let radarrClient: RadarrClient | undefined;
         let tmdbClient: TmdbClient | undefined;
 
-        if (config.plex) {
+        if (registry.isConfigured("plex") && config.plex) {
           plexClient = new PlexClient(config.plex);
         }
-        if (config.sonarr) {
+        if (registry.isConfigured("sonarr") && config.sonarr) {
           sonarrClient = new SonarrClient(config.sonarr);
         }
-        if (config.radarr) {
+        if (registry.isConfigured("radarr") && config.radarr) {
           radarrClient = new RadarrClient(config.radarr, "Radarr");
         }
-        if (config.tmdb) {
+        if (registry.isConfigured("tmdb") && config.tmdb) {
           tmdbClient = new TmdbClient(config.tmdb);
         }
 
@@ -225,6 +226,19 @@ export function registerLibrarySyncTool(
           const radarrMovies = radarrClient
             ? await radarrClient.getAllMovies()
             : undefined;
+          // Read 4K ownership before any mutation; an unavailable inventory must abort sync.
+          if (
+            radarrMovies &&
+            registry.isConfigured("radarr4k") &&
+            config.radarr4k
+          ) {
+            radarrMovies.push(
+              ...(await new RadarrClient(
+                config.radarr4k,
+                "Radarr4K",
+              ).getAllMovies()),
+            );
+          }
           const sonarrSeries = sonarrClient
             ? await sonarrClient.getAllSeries()
             : undefined;
@@ -319,7 +333,9 @@ export function registerLibrarySyncTool(
 
                   // Look up series in Sonarr by title, then match by TVDB ID
                   const lookup = await sonarrClient.searchSeries(show.title);
-                  const seriesInfo = lookup.find((s) => s.tvdbId === show.tvdbId);
+                  const seriesInfo = lookup.find(
+                    (s) => s.tvdbId === show.tvdbId,
+                  );
                   if (!seriesInfo) {
                     result.shows.results.push({
                       success: false,

@@ -55,9 +55,8 @@ export class SabnzbdClient {
       const response = await fetch(url, {
         method: "GET",
         signal: controller.signal,
+        redirect: "error",
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -83,14 +82,30 @@ export class SabnzbdClient {
         );
       }
 
+      if (
+        data &&
+        typeof data === "object" &&
+        "status" in data &&
+        data.status === false
+      ) {
+        throw new ApiError("Sabnzbd rejected the operation", 400, "", {
+          service: "Sabnzbd",
+          endpoint: mode,
+        });
+      }
       return data;
     } catch (error) {
-      clearTimeout(timeoutId);
-
       if (error instanceof ApiError) {
         throw error;
       }
 
+      if (error instanceof SyntaxError) {
+        throw new NetworkError(
+          "Invalid JSON response from service",
+          this.baseUrl,
+          "Sabnzbd",
+        );
+      }
       if (error instanceof Error) {
         if (error.name === "AbortError") {
           throw new NetworkError(
@@ -113,6 +128,8 @@ export class SabnzbdClient {
       }
 
       throw new NetworkError("Unknown network error", url, "Sabnzbd");
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

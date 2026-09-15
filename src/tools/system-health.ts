@@ -1,5 +1,5 @@
+import { booleanParam } from "../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { Config } from "../config.js";
 import type { ProviderRegistry } from "../providers/index.js";
 import { SonarrClient } from "../services/sonarr/client.js";
@@ -30,8 +30,7 @@ export function registerSystemHealthTool(
     "system_health",
     "Check health status of all configured services (Sonarr, Radarr, Plex, Sabnzbd). Use verbose: true for detailed info.",
     {
-      verbose: z
-        .boolean()
+      verbose: booleanParam()
         .optional()
         .describe(
           "Include detailed info: version numbers, counts, queue status, recent activity",
@@ -41,7 +40,7 @@ export function registerSystemHealthTool(
       const services: ServiceHealth[] = [];
 
       // Check Sonarr
-      if (config.sonarr) {
+      if (registry.isConfigured("sonarr") && config.sonarr) {
         try {
           const client = new SonarrClient(config.sonarr);
           const health = await client.getHealth();
@@ -115,7 +114,7 @@ export function registerSystemHealthTool(
       }
 
       // Check Radarr
-      if (config.radarr) {
+      if (registry.isConfigured("radarr") && config.radarr) {
         try {
           const client = new RadarrClient(config.radarr, "Radarr");
           const health = await client.getHealth();
@@ -187,7 +186,7 @@ export function registerSystemHealthTool(
       }
 
       // Check Radarr4K
-      if (config.radarr4k) {
+      if (registry.isConfigured("radarr4k") && config.radarr4k) {
         try {
           const client = new RadarrClient(config.radarr4k, "Radarr4K");
           const health = await client.getHealth();
@@ -248,7 +247,7 @@ export function registerSystemHealthTool(
       }
 
       // Check Plex
-      if (config.plex) {
+      if (registry.isConfigured("plex") && config.plex) {
         try {
           const client = new PlexClient(config.plex);
           const identity = await client.getServerIdentity();
@@ -320,7 +319,7 @@ export function registerSystemHealthTool(
       }
 
       // Check Sabnzbd
-      if (config.sabnzbd) {
+      if (registry.isConfigured("sabnzbd") && config.sabnzbd) {
         try {
           const client = new SabnzbdClient(config.sabnzbd);
           const status = await client.getServerStatus();
@@ -380,13 +379,13 @@ export function registerSystemHealthTool(
       }
 
       // Check Overseerr
-      if (config.overseerr) {
+      if (registry.isConfigured("overseerr") && config.overseerr) {
         try {
           const client = new OverseerrClient(config.overseerr);
           const health = await client.checkHealth();
 
           const serviceHealth: ServiceHealth = {
-            name: "Overseerr",
+            name: "Seerr / Overseerr",
             status: "ok",
             issues: [],
           };
@@ -412,7 +411,7 @@ export function registerSystemHealthTool(
           services.push(serviceHealth);
         } catch (error) {
           services.push({
-            name: "Overseerr",
+            name: "Seerr / Overseerr",
             status: "error",
             issues: [formatErrorResponse(error)],
           });

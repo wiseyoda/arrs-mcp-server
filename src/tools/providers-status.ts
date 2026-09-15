@@ -54,7 +54,9 @@ function formatProvidersStatus(state: ProviderStatusFormatted): string {
     lines.push("Configured:");
     for (const provider of configured) {
       const caps = provider.capabilities.join(", ");
-      lines.push(`  \u2713 ${provider.displayName} - ${provider.description} (${caps})`);
+      lines.push(
+        `  \u2713 ${provider.displayName} - ${provider.description} (${caps})`,
+      );
     }
     lines.push("");
   }

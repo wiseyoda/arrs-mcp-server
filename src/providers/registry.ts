@@ -57,11 +57,21 @@ const PROVIDER_DEFINITIONS: Record<
     configKeys: ["sabnzbd.url", "sabnzbd.apiKey"],
   },
   overseerr: {
-    displayName: "Overseerr",
+    displayName: "Seerr / Overseerr",
     description: "Request management",
     capabilities: ["requests", "issues", "users", "search"],
-    envVars: ["OVERSEERR_URL", "OVERSEERR_API_KEY"],
-    configKeys: ["overseerr.url", "overseerr.apiKey"],
+    envVars: [
+      "SEERR_URL",
+      "SEERR_API_KEY",
+      "OVERSEERR_URL",
+      "OVERSEERR_API_KEY",
+    ],
+    configKeys: [
+      "seerr.url",
+      "seerr.apiKey",
+      "overseerr.url",
+      "overseerr.apiKey",
+    ],
   },
   tmdb: {
     displayName: "TMDB",

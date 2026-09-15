@@ -1,3 +1,4 @@
+import { booleanParam } from "../../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
@@ -14,8 +15,10 @@ function formatRequestStatus(status: number): string {
       return "Approved";
     case RequestStatus.DECLINED:
       return "Declined";
-    case RequestStatus.AVAILABLE:
-      return "Available";
+    case RequestStatus.FAILED:
+      return "Failed";
+    case RequestStatus.COMPLETED:
+      return "Completed";
     default:
       return `Unknown (${status})`;
   }
@@ -75,6 +78,9 @@ export function registerOverseerrTools(
         .describe("Filter by status. Default: all"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(20)
         .describe("Maximum results to return. Default: 20"),
@@ -97,7 +103,9 @@ export function registerOverseerrTools(
             let title = "Unknown";
             try {
               if (request.type === "movie") {
-                const movie = await client.getMovieDetails(request.media.tmdbId);
+                const movie = await client.getMovieDetails(
+                  request.media.tmdbId,
+                );
                 title = movie.title;
               } else {
                 const tv = await client.getTvDetails(request.media.tmdbId);
@@ -146,7 +154,12 @@ export function registerOverseerrTools(
     "request_approve",
     "Approve a pending media request. The media will be added to Sonarr/Radarr.",
     {
-      request_id: z.coerce.number().describe("ID of the request to approve"),
+      request_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the request to approve"),
     },
     async ({ request_id }) => {
       try {
@@ -190,7 +203,12 @@ export function registerOverseerrTools(
     "request_decline",
     "Decline a media request with an optional reason",
     {
-      request_id: z.coerce.number().describe("ID of the request to decline"),
+      request_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the request to decline"),
       reason: z
         .string()
         .max(500)
@@ -243,7 +261,12 @@ export function registerOverseerrTools(
     "overseerr_request_details",
     "Get detailed information about a specific request",
     {
-      request_id: z.coerce.number().describe("ID of the request"),
+      request_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the request"),
     },
     async ({ request_id }) => {
       try {
@@ -298,10 +321,15 @@ export function registerOverseerrTools(
     "overseerr_request_delete",
     "Delete a request from Overseerr. Requires explicit confirmation.",
     {
-      request_id: z.coerce.number().describe("ID of the request to delete"),
-      confirm: z
-        .boolean()
-        .describe("Must be true to confirm deletion. Required for safety."),
+      request_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the request to delete"),
+      confirm: booleanParam().describe(
+        "Must be true to confirm deletion. Required for safety.",
+      ),
     },
     async ({ request_id, confirm }) => {
       if (!confirm) {
@@ -312,6 +340,7 @@ export function registerOverseerrTools(
               text: "Deletion cancelled. Set confirm=true to delete the request.",
             },
           ],
+          isError: true,
         };
       }
 
@@ -359,6 +388,9 @@ export function registerOverseerrTools(
     {
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(50)
         .describe("Maximum results to return. Default: 50"),
@@ -402,7 +434,12 @@ export function registerOverseerrTools(
     "overseerr_user_requests",
     "View a specific user's request history",
     {
-      user_id: z.coerce.number().describe("ID of the user"),
+      user_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the user"),
     },
     async ({ user_id }) => {
       try {
@@ -467,7 +504,12 @@ export function registerOverseerrTools(
     "overseerr_user_quota",
     "Check a user's request quota and limits",
     {
-      user_id: z.coerce.number().describe("ID of the user"),
+      user_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the user"),
     },
     async ({ user_id }) => {
       try {
@@ -478,20 +520,13 @@ export function registerOverseerrTools(
 
         let output = `Quota for ${user.displayName}:\n\n`;
 
-        if (!quota.movie.restricted && !quota.tv.restricted) {
-          output += "No quota restrictions configured.";
-        } else {
-          if (quota.movie.restricted) {
-            output += `Movies: ${quota.movie.remaining}/${quota.movie.limit} remaining\n`;
-          } else {
-            output += "Movies: Unlimited\n";
-          }
-
-          if (quota.tv.restricted) {
-            output += `TV Shows: ${quota.tv.remaining}/${quota.tv.limit} remaining`;
-          } else {
-            output += "TV Shows: Unlimited";
-          }
+        for (const [label, quotaInfo] of [
+          ["Movies", quota.movie],
+          ["TV Shows", quota.tv],
+        ] as const) {
+          output += quotaInfo.limit
+            ? `${label}: ${quotaInfo.remaining ?? Math.max(0, quotaInfo.limit - quotaInfo.used)}/${quotaInfo.limit} remaining\n`
+            : `${label}: Unlimited\n`;
         }
 
         return {
@@ -517,6 +552,9 @@ export function registerOverseerrTools(
         .describe("Filter by status. Default: all"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(20)
         .describe("Maximum results to return. Default: 20"),
@@ -585,7 +623,12 @@ export function registerOverseerrTools(
     "overseerr_issue_details",
     "Get detailed information about a specific issue",
     {
-      issue_id: z.coerce.number().describe("ID of the issue"),
+      issue_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the issue"),
     },
     async ({ issue_id }) => {
       try {
@@ -645,18 +688,23 @@ export function registerOverseerrTools(
     "overseerr_issue_comment",
     "Add a comment to an issue",
     {
-      issue_id: z.coerce.number().describe("ID of the issue"),
+      issue_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the issue"),
       comment: z.string().min(1).describe("Comment text to add"),
     },
     async ({ issue_id, comment }) => {
       try {
-        const newComment = await client.addIssueComment(issue_id, comment);
+        await client.addIssueComment(issue_id, comment);
 
         return {
           content: [
             {
               type: "text",
-              text: `Added comment to issue #${issue_id}:\n"${newComment.message}"`,
+              text: `Added comment to issue #${issue_id}:\n"${comment}"`,
             },
           ],
         };
@@ -674,7 +722,12 @@ export function registerOverseerrTools(
     "overseerr_issue_resolve",
     "Mark an issue as resolved",
     {
-      issue_id: z.coerce.number().describe("ID of the issue to resolve"),
+      issue_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("ID of the issue to resolve"),
     },
     async ({ issue_id }) => {
       try {
@@ -713,6 +766,9 @@ export function registerOverseerrTools(
         .describe("Filter by media type. Default: all"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(10)
         .describe("Maximum results to return. Default: 10"),
@@ -732,7 +788,11 @@ export function registerOverseerrTools(
         const results = page.results.slice(0, limit);
         const formatted = results.map(formatDiscoverResult).join("\n\n");
         const typeLabel =
-          type === "all" ? "content" : type === "tv" ? "TV shows" : "movies";
+          !type || type === "all"
+            ? "content"
+            : type === "tv"
+              ? "TV shows"
+              : "movies";
 
         return {
           content: [
@@ -758,6 +818,9 @@ export function registerOverseerrTools(
     {
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(10)
         .describe("Maximum results to return. Default: 10"),

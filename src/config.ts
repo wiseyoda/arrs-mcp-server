@@ -1,5 +1,7 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
+import { ConfigError } from "./shared/errors.js";
 
 export interface ServiceConfig {
   url: string;
@@ -25,161 +27,110 @@ export interface Config {
   tmdb?: TmdbConfig;
 }
 
-function getEnvConfig(): Partial<Config> {
-  const config: Partial<Config> = {};
+// Seerr is normalized to the historical internal provider key so tool names remain stable.
+const serviceNames = [
+  "sonarr",
+  "radarr",
+  "radarr4k",
+  "plex",
+  "sabnzbd",
+  "overseerr",
+  "tmdb",
+] as const;
+const secret = z.string().trim().min(1);
+const url = z
+  .string()
+  .url()
+  .refine((value) => {
+    const parsed = new URL(value);
+    return (
+      ["http:", "https:"].includes(parsed.protocol) &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash
+    );
+  }, "Use an HTTP(S) base URL without credentials, query, or fragment")
+  .transform((value) => value.replace(/\/+$/, ""));
+const serviceSchema = z.object({ url, apiKey: secret });
+const schemas = {
+  sonarr: serviceSchema,
+  radarr: serviceSchema,
+  radarr4k: serviceSchema,
+  plex: z.object({ url, token: secret }),
+  sabnzbd: serviceSchema,
+  overseerr: serviceSchema,
+  tmdb: z.object({ apiKey: secret }),
+};
 
-  // Sonarr
-  if (process.env.SONARR_URL && process.env.SONARR_API_KEY) {
-    config.sonarr = {
-      url: process.env.SONARR_URL,
-      apiKey: process.env.SONARR_API_KEY,
-    };
-  }
-
-  // Radarr
-  if (process.env.RADARR_URL && process.env.RADARR_API_KEY) {
-    config.radarr = {
-      url: process.env.RADARR_URL,
-      apiKey: process.env.RADARR_API_KEY,
-    };
-  }
-
-  // Radarr4k
-  if (process.env.RADARR4K_URL && process.env.RADARR4K_API_KEY) {
-    config.radarr4k = {
-      url: process.env.RADARR4K_URL,
-      apiKey: process.env.RADARR4K_API_KEY,
-    };
-  }
-
-  // Plex
-  if (process.env.PLEX_URL && process.env.PLEX_TOKEN) {
-    config.plex = {
-      url: process.env.PLEX_URL,
-      token: process.env.PLEX_TOKEN,
-    };
-  }
-
-  // Sabnzbd
-  if (process.env.SABNZBD_URL && process.env.SABNZBD_API_KEY) {
-    config.sabnzbd = {
-      url: process.env.SABNZBD_URL,
-      apiKey: process.env.SABNZBD_API_KEY,
-    };
-  }
-
-  // Overseerr
-  if (process.env.OVERSEERR_URL && process.env.OVERSEERR_API_KEY) {
-    config.overseerr = {
-      url: process.env.OVERSEERR_URL,
-      apiKey: process.env.OVERSEERR_API_KEY,
-    };
-  }
-
-  // TMDB
-  if (process.env.TMDB_API_KEY) {
-    config.tmdb = {
-      apiKey: process.env.TMDB_API_KEY,
-    };
-  }
-
-  return config;
-}
-
-function getFileConfig(): Partial<Config> {
-  const configPath =
-    process.env.CONFIG_PATH || join(process.cwd(), "config.json");
-
-  if (!existsSync(configPath)) {
-    return {};
-  }
-
+function fileConfig(): Record<string, unknown> {
+  const path = process.env.CONFIG_PATH || join(process.cwd(), "config.json");
+  let content: string;
   try {
-    const content = readFileSync(configPath, "utf-8");
-    return JSON.parse(content) as Partial<Config>;
+    content = readFileSync(path, "utf8");
   } catch (error) {
-    console.error(
-      `Warning: Failed to parse config file at ${configPath}:`,
-      error,
-    );
-    return {};
+    if (
+      !process.env.CONFIG_PATH &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    )
+      return {};
+    throw new ConfigError("Cannot read configuration file.");
   }
-}
-
-function mergeConfigs(
-  fileConfig: Partial<Config>,
-  envConfig: Partial<Config>,
-): Config {
-  // Environment variables take precedence over file config
-  return {
-    sonarr: envConfig.sonarr || fileConfig.sonarr,
-    radarr: envConfig.radarr || fileConfig.radarr,
-    radarr4k: envConfig.radarr4k || fileConfig.radarr4k,
-    plex: envConfig.plex || fileConfig.plex,
-    sabnzbd: envConfig.sabnzbd || fileConfig.sabnzbd,
-    overseerr: envConfig.overseerr || fileConfig.overseerr,
-    tmdb: envConfig.tmdb || fileConfig.tmdb,
-  };
-}
-
-function validateConfig(config: Config): void {
-  const configuredServices: string[] = [];
-  const missingServices: string[] = [];
-
-  if (config.sonarr?.url && config.sonarr?.apiKey) {
-    configuredServices.push("Sonarr");
-  } else if (config.sonarr?.url || config.sonarr?.apiKey) {
-    missingServices.push("Sonarr (incomplete - need both url and apiKey)");
-  }
-
-  if (config.radarr?.url && config.radarr?.apiKey) {
-    configuredServices.push("Radarr");
-  }
-
-  if (config.radarr4k?.url && config.radarr4k?.apiKey) {
-    configuredServices.push("Radarr4k");
-  }
-
-  if (config.plex?.url && config.plex?.token) {
-    configuredServices.push("Plex");
-  }
-
-  if (config.sabnzbd?.url && config.sabnzbd?.apiKey) {
-    configuredServices.push("Sabnzbd");
-  }
-
-  if (config.overseerr?.url && config.overseerr?.apiKey) {
-    configuredServices.push("Overseerr");
-  }
-
-  if (config.tmdb?.apiKey) {
-    configuredServices.push("TMDB");
-  }
-
-  if (configuredServices.length === 0) {
-    throw new Error(
-      "No services configured. Please set environment variables " +
-        "(SONARR_URL, SONARR_API_KEY, etc.) or create a config.json file. " +
-        "See config.example.json for the expected format.",
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error();
+    return parsed as Record<string, unknown>;
+  } catch {
+    // JSON parser errors can contain excerpts of credentials; do not log them.
+    throw new ConfigError(
+      "Configuration file must contain a valid JSON object.",
     );
   }
-
-  if (missingServices.length > 0) {
-    console.error(
-      "Warning: Some services have incomplete configuration:",
-      missingServices,
-    );
-  }
-
-  console.error("Configured services:", configuredServices.join(", "));
 }
 
 export function loadConfig(): Config {
-  const fileConfig = getFileConfig();
-  const envConfig = getEnvConfig();
-  const config = mergeConfigs(fileConfig, envConfig);
-
-  validateConfig(config);
-
+  const file = fileConfig();
+  const config: Config = {};
+  for (const name of serviceNames) {
+    const prefix = name.toUpperCase();
+    const credential = name === "plex" ? "token" : "apiKey";
+    const credentialEnv = name === "plex" ? "TOKEN" : "API_KEY";
+    const base =
+      name === "overseerr" ? (file.seerr ?? file.overseerr) : file[name];
+    let envUrl = process.env[`${prefix}_URL`];
+    let envSecret = process.env[`${prefix}_${credentialEnv}`];
+    if (name === "overseerr") {
+      envUrl = process.env.SEERR_URL ?? envUrl;
+      envSecret = process.env.SEERR_API_KEY ?? envSecret;
+    }
+    if (base === undefined && envUrl === undefined && envSecret === undefined)
+      continue;
+    if (
+      base !== undefined &&
+      (!base || typeof base !== "object" || Array.isArray(base))
+    ) {
+      throw new ConfigError(
+        `Invalid ${name} configuration: expected an object.`,
+      );
+    }
+    const merged = {
+      ...(base as Record<string, unknown> | undefined),
+      ...(envUrl !== undefined ? { url: envUrl } : {}),
+      ...(envSecret !== undefined ? { [credential]: envSecret } : {}),
+    };
+    const result = schemas[name].safeParse(merged);
+    if (!result.success) {
+      throw new ConfigError(
+        `Invalid ${name} configuration: check ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}.`,
+      );
+    }
+    Object.assign(config, { [name]: result.data });
+  }
+  if (Object.keys(config).length === 0)
+    throw new ConfigError(
+      "No services configured. Set service environment variables or create config.json; see config.example.json.",
+    );
+  console.error("Configured services:", Object.keys(config).join(", "));
   return config;
 }

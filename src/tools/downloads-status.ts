@@ -1,3 +1,4 @@
+import { ProviderRegistry } from "../providers/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { SonarrClient } from "../services/sonarr/client.js";
@@ -19,6 +20,7 @@ export function registerDownloadsStatusTool(
   server: McpServer,
   config: Config,
 ): void {
+  const registry = new ProviderRegistry(config);
   server.tool(
     "downloads_status",
     "Get unified download status across all services (Sonarr, Radarr, Sabnzbd)",
@@ -27,7 +29,7 @@ export function registerDownloadsStatusTool(
       const issues: string[] = [];
 
       // Get Sonarr queue
-      if (config.sonarr) {
+      if (registry.isConfigured("sonarr") && config.sonarr) {
         try {
           const client = new SonarrClient(config.sonarr);
           const queue = await client.getQueue();
@@ -64,7 +66,7 @@ export function registerDownloadsStatusTool(
       }
 
       // Get Radarr queue
-      if (config.radarr) {
+      if (registry.isConfigured("radarr") && config.radarr) {
         try {
           const client = new RadarrClient(config.radarr, "Radarr");
           const queue = await client.getQueue();
@@ -101,7 +103,7 @@ export function registerDownloadsStatusTool(
       }
 
       // Get Radarr4K queue
-      if (config.radarr4k) {
+      if (registry.isConfigured("radarr4k") && config.radarr4k) {
         try {
           const client = new RadarrClient(config.radarr4k, "Radarr4K");
           const queue = await client.getQueue();
@@ -138,7 +140,7 @@ export function registerDownloadsStatusTool(
       }
 
       // Get Sabnzbd queue
-      if (config.sabnzbd) {
+      if (registry.isConfigured("sabnzbd") && config.sabnzbd) {
         try {
           const client = new SabnzbdClient(config.sabnzbd);
           const queue = await client.getQueue();

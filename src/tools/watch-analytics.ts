@@ -44,9 +44,11 @@ interface WatchStats {
 // Aggregation Logic (T021)
 // ============================================================================
 
-function getPeriodDates(
-  period: "month" | "year" | "all",
-): { start: Date; end: Date; name: string } {
+function getPeriodDates(period: "month" | "year" | "all"): {
+  start: Date;
+  end: Date;
+  name: string;
+} {
   const now = new Date();
   const end = now;
   let start: Date;
@@ -106,9 +108,7 @@ async function aggregateWatchStats(
   if (type === "all" || type === "movies") {
     const movieLibraries = libraries.filter((l) => l.type === "movie");
     for (const lib of movieLibraries) {
-      const { items } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items } = await plexClient.getAllLibraryItems(lib.key);
 
       for (const item of items) {
         // Check if watched during period
@@ -156,9 +156,7 @@ async function aggregateWatchStats(
 
     for (const lib of showLibraries) {
       // Get shows first
-      const { items: shows } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items: shows } = await plexClient.getAllLibraryItems(lib.key);
 
       for (const show of shows) {
         // For shows, we need to count watched episodes
@@ -175,8 +173,7 @@ async function aggregateWatchStats(
             // Estimate episodes watched based on viewedLeafCount
             // Note: For period filtering, this is an approximation
             // since Plex doesn't give per-episode timestamps in bulk
-            const episodesWatched =
-              period === "all" ? show.viewedLeafCount : 1; // Conservative estimate
+            const episodesWatched = period === "all" ? show.viewedLeafCount : 1; // Conservative estimate
 
             stats.episodes.watched += episodesWatched;
 
@@ -243,7 +240,7 @@ async function aggregateWatchStats(
 export function registerWatchAnalyticsTool(
   server: McpServer,
   config: Config,
-  _registry: ProviderRegistry,
+  registry: ProviderRegistry,
 ): void {
   server.tool(
     "watch_analytics",
@@ -263,6 +260,7 @@ export function registerWatchAnalyticsTool(
     },
     async ({ period, type }) => {
       try {
+        registry.requireProviders("plex");
         if (!config.plex) {
           return {
             content: [
@@ -297,9 +295,7 @@ export function registerWatchAnalyticsTool(
 
         // Watch time breakdown
         if (type === "all") {
-          const movieHours = Math.round(
-            stats.movies.totalDurationMinutes / 60,
-          );
+          const movieHours = Math.round(stats.movies.totalDurationMinutes / 60);
           const episodeHours = Math.round(
             stats.episodes.totalDurationMinutes / 60,
           );
