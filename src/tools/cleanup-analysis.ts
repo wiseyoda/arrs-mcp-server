@@ -1,3 +1,4 @@
+import { ProviderRegistry } from "../providers/index.js";
 /**
  * Cleanup Analysis Tool
  *
@@ -43,12 +44,14 @@ export function registerCleanupAnalysisTool(
   server: McpServer,
   config: Config,
 ): void {
+  const registry = new ProviderRegistry(config);
   server.tool(
     "cleanup_analysis",
     "Analyze cleanup opportunities across all services. Returns unwatched movies, old watched content, ended series, duplicates, and failed downloads with potential space savings.",
     {
       unwatched_days: z.coerce
         .number()
+        .finite()
         .optional()
         .default(365)
         .describe(
@@ -56,6 +59,7 @@ export function registerCleanupAnalysisTool(
         ),
       watched_days: z.coerce
         .number()
+        .finite()
         .optional()
         .default(180)
         .describe(
@@ -63,6 +67,7 @@ export function registerCleanupAnalysisTool(
         ),
       limit_per_category: z.coerce
         .number()
+        .finite()
         .optional()
         .default(10)
         .describe("Maximum items to show per category. Default: 10"),
@@ -74,7 +79,7 @@ export function registerCleanupAnalysisTool(
         let totalSizeBytes = 0;
 
         // Check Plex for unwatched and old watched content
-        if (config.plex) {
+        if (registry.isConfigured("plex") && config.plex) {
           try {
             const plexClient = new PlexClient(config.plex);
             serviceStatus.push({ name: "Plex", available: true });
@@ -133,9 +138,7 @@ export function registerCleanupAnalysisTool(
             );
 
             for (const lib of movieLibraries) {
-              const { items } = await plexClient.getLibraryItems(lib.key, {
-                size: 1000,
-              });
+              const { items } = await plexClient.getAllLibraryItems(lib.key);
               for (const item of items) {
                 if (
                   item.viewCount &&
@@ -216,7 +219,7 @@ export function registerCleanupAnalysisTool(
         }
 
         // Check Sonarr for ended series
-        if (config.sonarr) {
+        if (registry.isConfigured("sonarr") && config.sonarr) {
           try {
             const sonarrClient = new SonarrClient(config.sonarr);
             serviceStatus.push({ name: "Sonarr", available: true });
@@ -264,7 +267,7 @@ export function registerCleanupAnalysisTool(
         }
 
         // Check Radarr for unmonitored movies
-        if (config.radarr) {
+        if (registry.isConfigured("radarr") && config.radarr) {
           try {
             const radarrClient = new RadarrClient(config.radarr, "Radarr");
             serviceStatus.push({ name: "Radarr", available: true });
@@ -312,7 +315,7 @@ export function registerCleanupAnalysisTool(
         }
 
         // Check Sabnzbd for failed downloads
-        if (config.sabnzbd) {
+        if (registry.isConfigured("sabnzbd") && config.sabnzbd) {
           try {
             const sabnzbdClient = new SabnzbdClient(config.sabnzbd);
             serviceStatus.push({ name: "Sabnzbd", available: true });

@@ -44,11 +44,10 @@ export class HttpClient {
           "Content-Type": "application/json",
           ...this.headers,
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
+        redirect: "error",
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -68,12 +67,17 @@ export class HttpClient {
       const data = text ? (JSON.parse(text) as T) : (undefined as T);
       return { data, status: response.status };
     } catch (error) {
-      clearTimeout(timeoutId);
-
       if (error instanceof ApiError) {
         throw error;
       }
 
+      if (error instanceof SyntaxError) {
+        throw new NetworkError(
+          "Invalid JSON response from service",
+          url,
+          this.serviceName,
+        );
+      }
       if (error instanceof Error) {
         if (error.name === "AbortError") {
           throw new NetworkError(
@@ -96,6 +100,8 @@ export class HttpClient {
       }
 
       throw new NetworkError("Unknown network error", url, this.serviceName);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

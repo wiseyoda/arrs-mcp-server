@@ -1,3 +1,4 @@
+import { booleanParam } from "../../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
@@ -133,7 +134,12 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "tv_add",
     "Add a TV series to Sonarr. Use tv_search first to find the TVDB ID.",
     {
-      tvdb_id: z.coerce.number().describe("TVDB ID of the series to add"),
+      tvdb_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("TVDB ID of the series to add"),
       monitor: z
         .enum(["all", "future", "missing", "none"])
         .optional()
@@ -152,8 +158,7 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
         .describe(
           "Root folder path (optional, uses first available if not specified)",
         ),
-      search_now: z
-        .boolean()
+      search_now: booleanParam()
         .optional()
         .describe("Start searching for episodes immediately. Default: true"),
     },
@@ -199,9 +204,11 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
           const found = profiles.find(
             (p) => p.name.toLowerCase() === quality_profile.toLowerCase(),
           );
-          if (found) {
-            profileId = found.id;
-          }
+          if (!found)
+            throw new Error(
+              "Requested quality profile was not found; use the profiles tool to select a valid name.",
+            );
+          profileId = found.id;
         }
 
         // Find or use default folder
@@ -210,9 +217,11 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
           const found = folders.find((f) =>
             f.path.toLowerCase().includes(root_folder.toLowerCase()),
           );
-          if (found) {
-            folderPath = found.path;
-          }
+          if (!found)
+            throw new Error(
+              "Requested root folder was not found; use the folders tool to select a valid path.",
+            );
+          folderPath = found.path;
         }
 
         if (!profileId || !folderPath) {
@@ -297,12 +306,10 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
         .string()
         .optional()
         .describe("Filter by genre (partial match, e.g., 'comedy')"),
-      missing_only: z.coerce
-        .boolean()
+      missing_only: booleanParam()
         .optional()
         .describe("Only show series with missing episodes"),
-      unmonitored_only: z.coerce
-        .boolean()
+      unmonitored_only: booleanParam()
         .optional()
         .describe("Only show unmonitored series"),
       // Sorting
@@ -315,33 +322,34 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
       // Pagination
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(100)
         .describe("Maximum results to return. Default: 100"),
       offset: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(0)
         .describe("Skip this many results for pagination. Default: 0"),
-      summary: z.coerce
-        .boolean()
+      summary: booleanParam()
         .optional()
         .describe("Only return counts without listing items"),
       // Display options
-      show_size: z.coerce
-        .boolean()
+      show_size: booleanParam()
         .optional()
         .describe("Include disk size in output"),
-      show_network: z.coerce
-        .boolean()
+      show_network: booleanParam()
         .optional()
         .describe("Include network in output"),
-      show_runtime: z.coerce
-        .boolean()
+      show_runtime: booleanParam()
         .optional()
         .describe("Include episode runtime in output"),
-      show_added: z.coerce
-        .boolean()
+      show_added: booleanParam()
         .optional()
         .describe("Include date added in output"),
     },
@@ -530,9 +538,17 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "tv_episodes",
     "Get episode status for a specific TV series",
     {
-      series_id: z.coerce.number().describe("Sonarr series ID"),
+      series_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Sonarr series ID"),
       season: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Filter to a specific season (optional)"),
     },
@@ -593,8 +609,11 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "tv_search_missing",
     "Trigger a search for missing episodes",
     {
-      series_id: z
+      series_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .optional()
         .describe("Sonarr series ID (optional, searches all if not specified)"),
     },
@@ -667,7 +686,12 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_details",
     "Get detailed information about a specific TV series",
     {
-      series_id: z.coerce.number().describe("Sonarr series ID"),
+      series_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Sonarr series ID"),
     },
     async ({ series_id }) => {
       try {
@@ -711,14 +735,32 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_delete",
     "Remove a TV series from Sonarr",
     {
-      series_id: z.coerce.number().describe("Sonarr series ID to delete"),
-      delete_files: z
-        .boolean()
+      series_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Sonarr series ID to delete"),
+      confirm: booleanParam()
+        .optional()
+        .default(false)
+        .describe("Must be true to confirm removal."),
+      delete_files: booleanParam()
         .optional()
         .describe("Also delete downloaded files. Default: false"),
     },
-    async ({ series_id, delete_files }) => {
+    async ({ series_id, delete_files, confirm }) => {
       try {
+        if (!confirm)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Removal requires confirm=true. Files are retained unless delete_files=true.",
+              },
+            ],
+            isError: true,
+          };
         // Get series info first for confirmation message
         const series = await client.getSeries(series_id);
         const shouldDeleteFiles = delete_files === true;
@@ -842,8 +884,11 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_import",
     "Trigger a rescan to import pending downloads",
     {
-      series_id: z
+      series_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .optional()
         .describe(
           "Sonarr series ID to rescan (optional, rescans all if not specified)",
@@ -875,14 +920,32 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_blacklist",
     "Blacklist a release from the queue and optionally search for a replacement",
     {
-      queue_id: z.coerce.number().describe("Queue item ID to blacklist"),
-      search_again: z
-        .boolean()
+      confirm: booleanParam()
+        .optional()
+        .default(false)
+        .describe("Must be true to remove and blocklist this download."),
+      queue_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Queue item ID to blacklist"),
+      search_again: booleanParam()
         .optional()
         .describe("Search for a replacement after blacklisting. Default: true"),
     },
-    async ({ queue_id, search_again }) => {
+    async ({ queue_id, search_again, confirm }) => {
       try {
+        if (!confirm)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Blocklisting removes the download. Set confirm=true to proceed.",
+              },
+            ],
+            isError: true,
+          };
         const shouldSearch = search_again !== false;
         await client.deleteQueueItem(queue_id, {
           removeFromClient: true,
@@ -915,6 +978,9 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     {
       days: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Number of days to look ahead. Default: 7"),
     },
@@ -977,7 +1043,12 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_rename",
     "Rename all episode files for a series using Sonarr's naming rules",
     {
-      series_id: z.coerce.number().describe("Sonarr series ID"),
+      series_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Sonarr series ID"),
     },
     async ({ series_id }) => {
       try {
@@ -1005,7 +1076,12 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     "sonarr_refresh",
     "Refresh series metadata from TVDB (updates episode info, images, etc.)",
     {
-      series_id: z.coerce.number().describe("Sonarr series ID"),
+      series_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Sonarr series ID"),
     },
     async ({ series_id }) => {
       try {
@@ -1035,6 +1111,9 @@ export function registerSonarrTools(server: McpServer, config: Config): void {
     {
       days: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Number of days to look ahead. Default: 7"),
     },

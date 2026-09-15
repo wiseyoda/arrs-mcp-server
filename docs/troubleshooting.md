@@ -288,7 +288,7 @@ No services configured.
 **What you see:**
 
 ```
-Warning: Some services have incomplete configuration: Sonarr (incomplete - need both url and apiKey)
+Invalid sonarr configuration: check apiKey.
 ```
 
 **Why it happens:** You provided a URL for a service but forgot the API key, or vice versa. Both fields are required.
@@ -311,7 +311,7 @@ Warning: Some services have incomplete configuration: Sonarr (incomplete - need 
      }
    }
    ```
-2. If using environment variables, make sure you set both. For example, setting `SONARR_URL` without `SONARR_API_KEY` means Sonarr will not be registered.
+2. Ensure the merged file/environment configuration supplies both fields. A missing API key or token now fails startup; remove blocks for unused services.
 
 **Verify:** Run `providers_status` and confirm the service is listed as "Configured."
 
@@ -883,14 +883,14 @@ If a service is configured in both config.json and environment variables, the en
 - Overriding settings in Docker or CI environments.
 - Testing different configurations without editing files.
 
-The override is per-service. If `SONARR_URL` and `SONARR_API_KEY` are both set, the entire Sonarr config comes from environment variables. The Sonarr section in config.json is ignored.
+The override is per-field: `SONARR_URL` can override the URL while the API key remains in config.json, or vice versa. Seerr aliases take precedence over legacy Overseerr aliases.
 
 ### Node.js Version
 
-arrs-mcp-server requires Node.js 20 or later. Check your version:
+arrs-mcp-server requires Node.js 20.19.0 or later (22/24 LTS recommended). Check your version:
 
 ```bash
 node --version
 ```
 
-If you see `v18` or lower, update Node.js before running the server.
+If your version is below `v20.19.0`, update Node.js before running the server.

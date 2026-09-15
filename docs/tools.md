@@ -1654,3 +1654,18 @@ These are multi-step workflows that chain several tools together. Claude handles
 1. `library_audit` identifies orphans, missing items, and mismatches
 2. `library_sync` fixes orphans by adding them to Sonarr/Radarr
 3. `cleanup_analysis` finds cleanup opportunities across services
+
+## Safety and parameter compatibility (September 2026)
+
+`movie_delete`, `sonarr_delete`, `sabnzbd_delete`, `sonarr_blacklist`, and `radarr_blacklist` now require `confirm: true`
+to execute (like `plex_delete` and `overseerr_request_delete`). Movie/series files
+remain untouched unless `delete_files: true` is separately supplied. Existing
+tool names and default HD routing remain stable; 4K requires explicit selection.
+Boolean arguments accept native `true`/`false` or exact strings `"true"`/`"false"`;
+other truthy strings/numbers are rejected. Numeric IDs accept numeric strings and
+must be positive integers. Sync remains preview-only unless explicitly confirmed.
+
+`plex_watched_old(ended_only:true)` verifies TV series status through Sonarr and
+requires Sonarr when scanning show libraries. Fully watched ongoing shows are not
+classified as ended. Plex duplicate results include versions under one ratingKey;
+`plex_delete` deletes **all** versions of that item, never just one duplicate.

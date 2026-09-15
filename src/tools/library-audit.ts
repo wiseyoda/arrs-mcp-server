@@ -1,3 +1,4 @@
+import { ApiError } from "../shared/errors.js";
 /**
  * Library Audit Tool
  *
@@ -159,9 +160,7 @@ async function auditOrphans(
   if (movieIndex) {
     const movieLibraries = libraries.filter((l) => l.type === "movie");
     for (const lib of movieLibraries) {
-      const { items } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items } = await plexClient.getAllLibraryItems(lib.key);
       for (const item of items) {
         const matchable = plexItemToMatchable(item, "movie");
         const result = matchMovie(matchable, movieIndex);
@@ -186,9 +185,7 @@ async function auditOrphans(
   if (seriesIndex) {
     const showLibraries = libraries.filter((l) => l.type === "show");
     for (const lib of showLibraries) {
-      const { items } = await plexClient.getLibraryItems(lib.key, {
-        size: 10000,
-      });
+      const { items } = await plexClient.getAllLibraryItems(lib.key);
       for (const item of items) {
         const matchable = plexItemToMatchable(item, "show");
         const result = matchSeries(matchable, seriesIndex);
@@ -229,13 +226,13 @@ async function auditMissing(
   // Index Plex movies
   const movieLibraries = libraries.filter((l) => l.type === "movie");
   for (const lib of movieLibraries) {
-    const { items } = await plexClient.getLibraryItems(lib.key, {
-      size: 10000,
-    });
+    const { items } = await plexClient.getAllLibraryItems(lib.key);
     for (const item of items) {
       const matchable = plexItemToMatchable(item, "movie");
-      if (matchable.imdbId) plexMovieIndex.set(`imdb:${matchable.imdbId}`, true);
-      if (matchable.tmdbId) plexMovieIndex.set(`tmdb:${matchable.tmdbId}`, true);
+      if (matchable.imdbId)
+        plexMovieIndex.set(`imdb:${matchable.imdbId}`, true);
+      if (matchable.tmdbId)
+        plexMovieIndex.set(`tmdb:${matchable.tmdbId}`, true);
       plexMovieIndex.set(
         `title:${normalizeTitle(item.title)}:${item.year}`,
         true,
@@ -246,13 +243,13 @@ async function auditMissing(
   // Index Plex shows
   const showLibraries = libraries.filter((l) => l.type === "show");
   for (const lib of showLibraries) {
-    const { items } = await plexClient.getLibraryItems(lib.key, {
-      size: 10000,
-    });
+    const { items } = await plexClient.getAllLibraryItems(lib.key);
     for (const item of items) {
       const matchable = plexItemToMatchable(item, "show");
-      if (matchable.tvdbId) plexSeriesIndex.set(`tvdb:${matchable.tvdbId}`, true);
-      if (matchable.imdbId) plexSeriesIndex.set(`imdb:${matchable.imdbId}`, true);
+      if (matchable.tvdbId)
+        plexSeriesIndex.set(`tvdb:${matchable.tvdbId}`, true);
+      if (matchable.imdbId)
+        plexSeriesIndex.set(`imdb:${matchable.imdbId}`, true);
       plexSeriesIndex.set(
         `title:${normalizeTitle(item.title)}:${item.year}`,
         true,
@@ -268,7 +265,9 @@ async function auditMissing(
       const inPlex =
         (movie.imdbId && plexMovieIndex.has(`imdb:${movie.imdbId}`)) ||
         plexMovieIndex.has(`tmdb:${movie.tmdbId}`) ||
-        plexMovieIndex.has(`title:${normalizeTitle(movie.title)}:${movie.year}`);
+        plexMovieIndex.has(
+          `title:${normalizeTitle(movie.title)}:${movie.year}`,
+        );
 
       if (!inPlex) {
         missingMovies.push({
@@ -329,65 +328,53 @@ async function auditDownloads(
 
   // Check Sabnzbd for failed/stuck downloads
   if (sabnzbdClient) {
-    try {
-      const failed = await sabnzbdClient.getFailedDownloads();
-      for (const item of failed) {
-        stuckDownloads.push({
-          id: `sabnzbd:${item.nzo_id}`,
-          title: item.name,
-          sizeBytes: item.bytes,
-          size: formatSize(item.bytes),
-          details: item.fail_message || "Failed",
-        });
-      }
-    } catch {
-      // Sabnzbd might not be available
+    const failed = await sabnzbdClient.getFailedDownloads();
+    for (const item of failed) {
+      stuckDownloads.push({
+        id: `sabnzbd:${item.nzo_id}`,
+        title: item.name,
+        sizeBytes: item.bytes,
+        size: formatSize(item.bytes),
+        details: item.fail_message || "Failed",
+      });
     }
   }
 
   // Check Sonarr queue for import blocked items
   if (sonarrClient) {
-    try {
-      const queue = await sonarrClient.getQueueDetails();
-      for (const item of queue) {
-        if (
-          item.trackedDownloadState === "importBlocked" ||
-          item.trackedDownloadState === "failedPending"
-        ) {
-          stuckDownloads.push({
-            id: `sonarr:${item.id}`,
-            title: item.title,
-            sizeBytes: item.size,
-            size: formatSize(item.size),
-            details: item.errorMessage || item.trackedDownloadState,
-          });
-        }
+    const queue = await sonarrClient.getQueueDetails();
+    for (const item of queue) {
+      if (
+        item.trackedDownloadState === "importBlocked" ||
+        item.trackedDownloadState === "failedPending"
+      ) {
+        stuckDownloads.push({
+          id: `sonarr:${item.id}`,
+          title: item.title,
+          sizeBytes: item.size,
+          size: formatSize(item.size),
+          details: item.errorMessage || item.trackedDownloadState,
+        });
       }
-    } catch {
-      // Sonarr might not be available
     }
   }
 
   // Check Radarr queue for import blocked items
   if (radarrClient) {
-    try {
-      const queue = await radarrClient.getQueueDetails();
-      for (const item of queue) {
-        if (
-          item.trackedDownloadState === "importBlocked" ||
-          item.trackedDownloadState === "failedPending"
-        ) {
-          stuckDownloads.push({
-            id: `radarr:${item.id}`,
-            title: item.title,
-            sizeBytes: item.size,
-            size: formatSize(item.size),
-            details: item.errorMessage || item.trackedDownloadState,
-          });
-        }
+    const queue = await radarrClient.getQueueDetails();
+    for (const item of queue) {
+      if (
+        item.trackedDownloadState === "importBlocked" ||
+        item.trackedDownloadState === "failedPending"
+      ) {
+        stuckDownloads.push({
+          id: `radarr:${item.id}`,
+          title: item.title,
+          sizeBytes: item.size,
+          size: formatSize(item.size),
+          details: item.errorMessage || item.trackedDownloadState,
+        });
       }
-    } catch {
-      // Radarr might not be available
     }
   }
 
@@ -400,23 +387,8 @@ async function auditQuality(
 ): Promise<QualityIssue[]> {
   const issues: QualityIssue[] = [];
 
-  if (!radarrMovies || !radarr4kMovies) {
-    return issues;
-  }
-
-  // Build indexes for cross-checking
-  const hdIndex = new Map<number, Movie>();
-  const fourKIndex = new Map<number, Movie>();
-
-  for (const movie of radarrMovies) {
-    if (movie.tmdbId) hdIndex.set(movie.tmdbId, movie);
-  }
-  for (const movie of radarr4kMovies) {
-    if (movie.tmdbId) fourKIndex.set(movie.tmdbId, movie);
-  }
-
   // Check for 4K content in HD Radarr (should be in 4K Radarr)
-  for (const movie of radarrMovies) {
+  for (const movie of radarrMovies ?? []) {
     if (!movie.hasFile || !movie.movieFile?.mediaInfo) continue;
     const resolution = movie.movieFile.mediaInfo.resolution;
     if (resolution && (resolution.includes("2160") || resolution === "4K")) {
@@ -435,7 +407,7 @@ async function auditQuality(
   }
 
   // Check for HD content in 4K Radarr (should be in HD Radarr)
-  for (const movie of radarr4kMovies) {
+  for (const movie of radarr4kMovies ?? []) {
     if (!movie.hasFile || !movie.movieFile?.mediaInfo) continue;
     const resolution = movie.movieFile.mediaInfo.resolution;
     if (
@@ -493,7 +465,8 @@ async function auditCollections(
       if (tmdbMovie.belongs_to_collection?.id) {
         collectionIds.add(tmdbMovie.belongs_to_collection.id);
       }
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ApiError && error.statusCode === 404)) throw error;
       // Movie might not be found in TMDB
     }
   }
@@ -523,7 +496,8 @@ async function auditCollections(
           missingMovies,
         });
       }
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ApiError && error.statusCode === 404)) throw error;
       // Collection might not be found
     }
   }
@@ -568,7 +542,7 @@ async function auditEnded(
 export function registerLibraryAuditTool(
   server: McpServer,
   config: Config,
-  _registry: ProviderRegistry,
+  registry: ProviderRegistry,
 ): void {
   server.tool(
     "library_audit",
@@ -612,7 +586,7 @@ export function registerLibraryAuditTool(
         let tmdbClient: TmdbClient | undefined;
 
         // Plex
-        if (config.plex) {
+        if (registry.isConfigured("plex") && config.plex) {
           try {
             plexClient = new PlexClient(config.plex);
             await plexClient.getLibraries(); // Test connection
@@ -627,7 +601,7 @@ export function registerLibraryAuditTool(
         }
 
         // Sonarr
-        if (config.sonarr) {
+        if (registry.isConfigured("sonarr") && config.sonarr) {
           try {
             sonarrClient = new SonarrClient(config.sonarr);
             services.push({ name: "Sonarr", available: true });
@@ -641,7 +615,7 @@ export function registerLibraryAuditTool(
         }
 
         // Radarr
-        if (config.radarr) {
+        if (registry.isConfigured("radarr") && config.radarr) {
           try {
             radarrClient = new RadarrClient(config.radarr, "Radarr");
             services.push({ name: "Radarr", available: true });
@@ -655,7 +629,7 @@ export function registerLibraryAuditTool(
         }
 
         // Radarr4K
-        if (config.radarr4k) {
+        if (registry.isConfigured("radarr4k") && config.radarr4k) {
           try {
             radarr4kClient = new RadarrClient(config.radarr4k, "Radarr4K");
             services.push({ name: "Radarr4K", available: true });
@@ -669,7 +643,7 @@ export function registerLibraryAuditTool(
         }
 
         // Sabnzbd
-        if (config.sabnzbd) {
+        if (registry.isConfigured("sabnzbd") && config.sabnzbd) {
           try {
             sabnzbdClient = new SabnzbdClient(config.sabnzbd);
             services.push({ name: "Sabnzbd", available: true });
@@ -683,7 +657,7 @@ export function registerLibraryAuditTool(
         }
 
         // TMDB
-        if (config.tmdb) {
+        if (registry.isConfigured("tmdb") && config.tmdb) {
           try {
             tmdbClient = new TmdbClient(config.tmdb);
             services.push({ name: "TMDB", available: true });
@@ -697,7 +671,10 @@ export function registerLibraryAuditTool(
         }
 
         // Require Plex for most checks
-        if (!plexClient && ["all", "orphans", "missing", "collections"].includes(check)) {
+        if (
+          !plexClient &&
+          ["all", "orphans", "missing", "collections"].includes(check)
+        ) {
           return {
             content: [
               {
@@ -716,18 +693,36 @@ export function registerLibraryAuditTool(
         let movieIndex: MovieIndex | undefined;
         let seriesIndex: SeriesIndex | undefined;
 
-        if (radarrClient && ["all", "orphans", "missing", "collections"].includes(check)) {
+        if (
+          radarrClient &&
+          ["all", "orphans", "missing", "collections", "quality"].includes(
+            check,
+          )
+        ) {
           radarrMovies = await radarrClient.getAllMovies();
           movieIndex = buildMovieIndex(radarrMovies);
         }
 
-        if (radarr4kClient && ["all", "quality"].includes(check)) {
+        if (radarr4kClient && ["all", "quality", "orphans"].includes(check)) {
           radarr4kMovies = await radarr4kClient.getAllMovies();
         }
 
-        if (sonarrClient && ["all", "orphans", "missing", "ended"].includes(check)) {
+        if (
+          sonarrClient &&
+          ["all", "orphans", "missing", "ended"].includes(check)
+        ) {
           sonarrSeries = await sonarrClient.getAllSeries();
           seriesIndex = buildSeriesIndex(sonarrSeries);
+        }
+
+        if (
+          ["all", "orphans"].includes(check) &&
+          (radarrMovies || radarr4kMovies)
+        ) {
+          movieIndex = buildMovieIndex([
+            ...(radarrMovies ?? []),
+            ...(radarr4kMovies ?? []),
+          ]);
         }
 
         // Run requested checks
@@ -823,7 +818,10 @@ export function registerLibraryAuditTool(
 
           output += "Ended Series:\n";
           output += `  Ended series with files: ${result.ended.length}\n`;
-          const endedSize = result.ended.reduce((sum, s) => sum + s.sizeBytes, 0);
+          const endedSize = result.ended.reduce(
+            (sum, s) => sum + s.sizeBytes,
+            0,
+          );
           output += `  Potential cleanup: ${formatSize(endedSize)}\n\n`;
 
           output +=
@@ -953,7 +951,7 @@ export function registerLibraryAuditTool(
                 }
               } else {
                 output +=
-                  "No quality routing issues found (or Radarr4K not configured).\n";
+                  "No quality routing issues found in the configured Radarr inventories.\n";
               }
               break;
             }
@@ -976,7 +974,8 @@ export function registerLibraryAuditTool(
                   0,
                 );
                 output += `Total missing: ${totalMissing} movies\n`;
-                output += "To add missing movies: Use movie_add() with TMDB IDs shown\n";
+                output +=
+                  "To add missing movies: Use movie_add() with TMDB IDs shown\n";
               } else {
                 output +=
                   "No incomplete collections found (or TMDB not configured).\n";

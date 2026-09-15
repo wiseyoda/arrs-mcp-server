@@ -22,7 +22,7 @@ export class TmdbClient {
 
   private addApiKey(path: string): string {
     const separator = path.includes("?") ? "&" : "?";
-    return `${path}${separator}api_key=${this.apiKey}`;
+    return `${path}${separator}api_key=${encodeURIComponent(this.apiKey)}`;
   }
 
   // ============================================================
@@ -64,7 +64,9 @@ export class TmdbClient {
 
   async searchMovies(query: string, page: number = 1): Promise<Movie[]> {
     const encodedQuery = encodeURIComponent(query);
-    const path = this.addApiKey(`/search/movie?query=${encodedQuery}&page=${page}`);
+    const path = this.addApiKey(
+      `/search/movie?query=${encodedQuery}&page=${page}`,
+    );
     const response = await this.http.get<MovieSearchResponse>(path);
     return response.results;
   }

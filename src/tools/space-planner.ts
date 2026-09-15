@@ -1,3 +1,4 @@
+import { booleanParam } from "../shared/params.js";
 /**
  * Space Planner Tool
  *
@@ -108,9 +109,7 @@ function getItemSize(item: PlexMediaItem): number {
   if (!item.Media || item.Media.length === 0) return 0;
   return item.Media.reduce((total, media) => {
     if (!media.Part) return total;
-    return (
-      total + media.Part.reduce((sum, part) => sum + (part.size || 0), 0)
-    );
+    return total + media.Part.reduce((sum, part) => sum + (part.size || 0), 0);
   }, 0);
 }
 
@@ -137,9 +136,7 @@ async function collectCandidates(
   });
 
   for (const lib of targetLibraries) {
-    const { items } = await plexClient.getLibraryItems(lib.key, {
-      size: 10000,
-    });
+    const { items } = await plexClient.getAllLibraryItems(lib.key);
 
     for (const item of items) {
       const sizeBytes = getItemSize(item);
@@ -203,7 +200,7 @@ async function collectCandidates(
 export function registerSpacePlannerTool(
   server: McpServer,
   config: Config,
-  _registry: ProviderRegistry,
+  registry: ProviderRegistry,
 ): void {
   server.tool(
     "space_planner",
@@ -211,8 +208,9 @@ export function registerSpacePlannerTool(
       "Items are scored using: (size_gb × days_since_watched) / (rating × rewatch_factor). " +
       "Higher scores = better deletion candidates (large, old, low-rated items first).",
     {
-      target_gb: z
+      target_gb: z.coerce
         .number()
+        .finite()
         .positive()
         .describe("Target space to free up in GB"),
       type: z
@@ -220,14 +218,14 @@ export function registerSpacePlannerTool(
         .optional()
         .default("all")
         .describe('Content type: "all", "movies", or "shows"'),
-      exclude_favorites: z
-        .boolean()
+      exclude_favorites: booleanParam()
         .optional()
         .default(false)
         .describe("Exclude items rated 8+ from recommendations"),
     },
     async ({ target_gb, type, exclude_favorites }) => {
       try {
+        registry.requireProviders("plex");
         if (!config.plex) {
           return {
             content: [
@@ -289,10 +287,8 @@ export function registerSpacePlannerTool(
           output += `| # | Title | Year | Size | Last Watched | Rating | Score | Reason |\n`;
           output += `|---|-------|------|------|--------------|--------|-------|--------|\n`;
 
-          let runningTotal = 0;
           for (let i = 0; i < result.recommendations.length; i++) {
             const rec = result.recommendations[i];
-            runningTotal += rec.sizeGb;
 
             const lastWatchedStr = rec.lastWatched
               ? rec.lastWatched.toISOString().split("T")[0]

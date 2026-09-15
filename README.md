@@ -1,17 +1,17 @@
 # arrs-mcp-server
 
-A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets Claude manage your media stack -- Sonarr, Radarr, Plex, SABnzbd, Overseerr, and TMDB -- through natural conversation.
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets Claude manage your media stack -- Sonarr, Radarr, Plex, SABnzbd, Seerr (formerly Overseerr), and TMDB -- through natural conversation.
 
 Ask Claude to add a show, check what's downloading, clean up your library, or complete a movie franchise. The server translates your requests into the right API calls across all your services.
 
 ## Quick Start
 
-**Prerequisites**: Node.js 20+ and pnpm.
+**Prerequisites**: Node.js 20.19+ (Node 22 or 24 LTS recommended) and pnpm.
 
 ```bash
-git clone https://github.com/yourusername/arrs-mcp-server.git
+git clone https://github.com/wiseyoda/arrs-mcp-server.git
 cd arrs-mcp-server
-pnpm install
+pnpm install --frozen-lockfile
 pnpm build
 ```
 
@@ -63,7 +63,7 @@ Restart Claude Desktop after saving.
 
 ### Claude Code
 
-Add to your project settings (`.claude/settings.json`) or user settings (`~/.claude/settings.json`):
+Add to your project MCP configuration (`.mcp.json`), or register with `claude mcp add`:
 
 ```json
 {
@@ -169,3 +169,10 @@ See [CLAUDE.md](CLAUDE.md) for architecture, patterns, and how to add new tools 
 ## License
 
 MIT
+
+## Verification and testing handoff
+
+Run `pnpm typecheck && pnpm lint && pnpm test` before testing against real services.
+Tests use isolated loopback fixtures and a real MCP stdio handshake; no credentials are needed.
+See [the full audit and Hermes testing guide](docs/TESTING.md) for compatibility changes,
+Seerr migration, and the live-service acceptance checklist.

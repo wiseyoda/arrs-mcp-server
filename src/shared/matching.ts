@@ -68,8 +68,9 @@ export interface PlexMatchableItem {
 export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "")
-    .replace(/^the/, "");
+    .replace(/^the\s+/u, "")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
 /**
@@ -106,6 +107,10 @@ export function buildMovieIndex(movies: Movie[]): MovieIndex {
     }
   }
 
+  for (const movie of movies) {
+    index.byTitleYear.set(titleYearKey(movie.title, movie.year), movie);
+  }
+
   return index;
 }
 
@@ -133,6 +138,10 @@ export function buildSeriesIndex(series: Series[]): SeriesIndex {
       index.byTitleYear.set(titleYearKey(show.title, show.year - 1), show);
       index.byTitleYear.set(titleYearKey(show.title, show.year + 1), show);
     }
+  }
+
+  for (const show of series) {
+    index.byTitleYear.set(titleYearKey(show.title, show.year), show);
   }
 
   return index;

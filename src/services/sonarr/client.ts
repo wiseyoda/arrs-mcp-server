@@ -19,7 +19,7 @@ export class SonarrClient {
 
   constructor(config: ServiceConfig) {
     this.http = new HttpClient({
-      baseUrl: `${config.url}/api/v3`,
+      baseUrl: `${config.url.replace(/\/+$/, "")}/api/v3`,
       headers: {
         "X-Api-Key": config.apiKey,
       },

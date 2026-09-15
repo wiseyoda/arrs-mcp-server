@@ -59,7 +59,12 @@ const PROVIDER_CONFIG_INFO: Record<ProviderName, ProviderConfigInfo> = {
     },
   },
   overseerr: {
-    envVars: ["OVERSEERR_URL", "OVERSEERR_API_KEY"],
+    envVars: [
+      "SEERR_URL",
+      "SEERR_API_KEY",
+      "OVERSEERR_URL",
+      "OVERSEERR_API_KEY",
+    ],
     configExample: {
       overseerr: {
         url: "http://your-overseerr:5055",
@@ -86,7 +91,7 @@ const PROVIDER_DISPLAY_NAMES: Record<ProviderName, string> = {
   radarr4k: "Radarr 4K",
   plex: "Plex",
   sabnzbd: "SABnzbd",
-  overseerr: "Overseerr",
+  overseerr: "Seerr / Overseerr",
   tmdb: "TMDB",
 };
 

@@ -9,7 +9,7 @@ The server reads settings from two sources:
 1. **config.json** -- a JSON file in your working directory (or a custom path).
 2. **Environment variables** -- individual variables for each service.
 
-Environment variables take precedence. When both sources define the same service, the environment variable version wins and the config.json version is ignored for that service. The merge happens per-service, not per-field. See [Precedence Rules](#precedence-rules) for details.
+Environment variables take precedence per field. A URL from config.json can be combined with an API key from the environment. See [Precedence Rules](#precedence-rules) for details.
 
 At least one service must be fully configured or the server will refuse to start.
 
@@ -400,7 +400,7 @@ There is no `url` field. The TMDB API endpoint (`https://api.themoviedb.org/3`) 
 
 ## Environment Variable Reference
 
-All 14 environment variables in one table:
+Legacy environment variables (Seerr aliases are described below):
 
 | Variable | Service | Maps to config.json | Required with |
 |----------|---------|---------------------|---------------|
@@ -419,7 +419,7 @@ All 14 environment variables in one table:
 | `OVERSEERR_API_KEY` | Overseerr | `overseerr.apiKey` | `OVERSEERR_URL` |
 | `TMDB_API_KEY` | TMDB | `tmdb.apiKey` | (standalone) |
 
-Most services need both variables set. If you set only one of a pair (for example `SONARR_URL` without `SONARR_API_KEY`), the environment configuration for that service is ignored.
+The merged configuration must contain both fields. An environment variable may supply one field while config.json supplies the other; an incomplete merged service fails startup.
 
 The two exceptions are `CONFIG_PATH` (system-level, not a service) and `TMDB_API_KEY` (TMDB has no URL to configure).
 
@@ -470,9 +470,9 @@ In Docker networking, use container names (like `http://sonarr:8989`) instead of
 
 ## Precedence Rules
 
-When both config.json and environment variables define the same service, the environment variable version replaces the config.json version entirely.
+When both config.json and environment variables define the same field, the environment value wins.
 
-The merge is **per-service, not per-field**. This means you cannot set the URL in config.json and the API key in an environment variable for the same service. If you set `SONARR_URL` and `SONARR_API_KEY` as environment variables, the entire `sonarr` block from config.json is ignored.
+The merge is **per-field**. You can keep the URL in config.json and provide the API key through an environment variable. Explicit empty values are invalid rather than silently falling back.
 
 **Example:**
 
@@ -503,16 +503,14 @@ The result:
 - **Sonarr** uses `http://nas:8989` with `key-from-env` (environment wins).
 - **Radarr** uses `http://localhost:7878` with `key-from-file` (file is used, no env vars set).
 
-**What does NOT work:**
+**Partial override:**
 
 ```bash
-# Setting only one of the pair does nothing for env-based config
 export SONARR_URL="http://nas:8989"
-# SONARR_API_KEY is not set
-# Result: Sonarr falls back entirely to config.json
+# With the example config.json above, Sonarr uses this URL and key-from-file.
 ```
 
-Both environment variables in a pair must be set for the environment configuration to take effect. The only exception is `TMDB_API_KEY`, which stands alone.
+Without an API key in either source, startup fails. TMDB needs only `TMDB_API_KEY`.
 
 ---
 
@@ -521,9 +519,31 @@ Both environment variables in a pair must be set for the environment configurati
 If the server fails to start, check these common issues:
 
 - **"No services configured"** -- No service has both required fields set. Verify your config.json exists and is valid JSON, or check that your environment variables are exported.
-- **Incomplete service warning** -- You set one field but not the other (for example, a URL without an API key). Both fields are required.
+- **Invalid service configuration** -- You set one field but not the other (for example, a URL without an API key). Both fields are required.
 - **Wrong config.json location** -- The server looks in the current working directory by default. Use `CONFIG_PATH` to point to a different location.
-- **Invalid JSON** -- The server logs a warning and continues without file config. Check for trailing commas or missing quotes in your config.json.
+- **Invalid JSON** -- The server fails startup with a credential-free error. Check for trailing commas or missing quotes in your config.json.
 - **Plex not connecting** -- Verify you used `token` (not `apiKey`) in the Plex config block.
 
 For more troubleshooting help, see [troubleshooting.md](troubleshooting.md).
+
+## Seerr compatibility and strict configuration
+
+Seerr replaces Overseerr/Jellyseerr but retains the `/api/v1` API. Set `SEERR_URL`
+and `SEERR_API_KEY`, or use `"seerr": { "url": "http://host:5055", "apiKey": "..." }`.
+Supply the server base URL (including any reverse-proxy prefix), **not** `/api/v1`.
+Existing `OVERSEERR_*`, `overseerr` config, `overseerr_*` tools, and the `overseerr`
+provider identifier remain supported. No duplicate tool registration occurs.
+
+Precedence is per field: environment overrides file; `SEERR_*` overrides the
+corresponding `OVERSEERR_*` variable. In JSON, `seerr` replaces the entire
+`overseerr` block when both are supplied. Do not mix credentials from two servers.
+An incomplete, malformed, or non-HTTP(S) configured service now fails startup
+with a credential-free error instead of registering a broken client. Remove unused
+service blocks rather than leaving empty placeholders. An explicit `CONFIG_PATH`
+that cannot be read fails startup. With no `CONFIG_PATH`, the optional config file
+is resolved against the process working directory; use an absolute `CONFIG_PATH`
+when launching from a different directory.
+
+Authenticated API requests do not follow redirects. Configure the final canonical
+HTTP(S) base URL (and correct reverse-proxy prefix); a redirect must not forward
+API keys or Plex tokens to another destination.

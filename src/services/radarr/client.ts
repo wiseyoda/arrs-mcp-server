@@ -1,3 +1,4 @@
+import { ApiError } from "../../shared/errors.js";
 import { HttpClient } from "../../shared/http.js";
 import type { ServiceConfig } from "../../config.js";
 import type {
@@ -17,7 +18,7 @@ export class RadarrClient {
 
   constructor(config: ServiceConfig, serviceName = "Radarr") {
     this.http = new HttpClient({
-      baseUrl: `${config.url}/api/v3`,
+      baseUrl: `${config.url.replace(/\/+$/, "")}/api/v3`,
       headers: {
         "X-Api-Key": config.apiKey,
       },
@@ -197,10 +198,10 @@ export class RadarrClient {
 
   /**
    * Rename movie files using Radarr's naming rules.
-   * This triggers the RenameFiles command for the specified movie.
+   * This triggers RenameMovie for all files of the specified movie.
    */
   async renameMovie(movieId: number): Promise<Command> {
-    return this.executeCommand("RenameFiles", { movieId });
+    return this.executeCommand("RenameMovie", { movieIds: [movieId] });
   }
 
   /**
@@ -212,7 +213,8 @@ export class RadarrClient {
     // This endpoint returns movies recommended based on your existing library
     try {
       return await this.http.get<MovieLookup[]>("/movie/discover");
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ApiError && error.statusCode === 404)) throw error;
       // Fallback: some Radarr versions may not have /discover endpoint
       // Return empty array if not available
       return [];

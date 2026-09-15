@@ -1,3 +1,4 @@
+import { ApiError } from "../../shared/errors.js";
 import { HttpClient } from "../../shared/http.js";
 import type { PlexConfig } from "../../config.js";
 import type {
@@ -47,9 +48,13 @@ export class PlexClient {
     options: {
       start?: number;
       size?: number;
+      filters?: Record<string, string>;
     } = {},
   ): Promise<{ items: PlexMediaItem[]; totalSize: number }> {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({
+      ...options.filters,
+      includeGuids: "1",
+    });
     if (options.start !== undefined) {
       params.set("X-Plex-Container-Start", String(options.start));
     }
@@ -63,15 +68,36 @@ export class PlexClient {
     return {
       items: response.MediaContainer.Metadata || [],
       totalSize:
-        response.MediaContainer.totalSize || response.MediaContainer.size,
+        response.MediaContainer.totalSize ?? response.MediaContainer.size,
     };
   }
 
+  async getAllLibraryItems(
+    libraryKey: string,
+    filters: Record<string, string> = {},
+  ): Promise<{ items: PlexMediaItem[]; totalSize: number }> {
+    const items: PlexMediaItem[] = [];
+    let totalSize: number;
+    do {
+      const page = await this.getLibraryItems(libraryKey, {
+        start: items.length,
+        size: 500,
+        filters,
+      });
+      totalSize = page.totalSize;
+      if (page.items.length === 0 && items.length < totalSize) {
+        throw new Error(
+          "Plex pagination stopped before the complete library was returned.",
+        );
+      }
+      items.push(...page.items);
+    } while (items.length < totalSize);
+    return { items, totalSize };
+  }
+
   async getUnwatchedItems(libraryKey: string): Promise<PlexMediaItem[]> {
-    const response = await this.http.get<PlexMediaContainer<PlexMediaItem>>(
-      `/library/sections/${libraryKey}/unwatched`,
-    );
-    return response.MediaContainer.Metadata || [];
+    return (await this.getAllLibraryItems(libraryKey, { unwatched: "1" }))
+      .items;
   }
 
   async getRecentlyAdded(
@@ -79,7 +105,7 @@ export class PlexClient {
     limit: number = 50,
   ): Promise<PlexMediaItem[]> {
     const response = await this.http.get<PlexMediaContainer<PlexMediaItem>>(
-      `/library/sections/${libraryKey}/newest?X-Plex-Container-Size=${limit}`,
+      `/library/sections/${libraryKey}/all?sort=addedAt:desc&X-Plex-Container-Size=${limit}`,
     );
     return response.MediaContainer.Metadata || [];
   }
@@ -115,17 +141,20 @@ export class PlexClient {
   async getItem(ratingKey: string): Promise<PlexMediaItem | null> {
     try {
       const response = await this.http.get<PlexMediaContainer<PlexMediaItem>>(
-        `/library/metadata/${ratingKey}`,
+        `/library/metadata/${encodeURIComponent(ratingKey)}`,
       );
       const items = response.MediaContainer.Metadata || [];
       return items.length > 0 ? items[0] : null;
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ApiError && error.statusCode === 404)) throw error;
       return null;
     }
   }
 
   async deleteItem(ratingKey: string): Promise<void> {
-    await this.http.delete<void>(`/library/metadata/${ratingKey}`);
+    await this.http.delete<void>(
+      `/library/metadata/${encodeURIComponent(ratingKey)}`,
+    );
   }
 
   // Library management
@@ -273,7 +302,9 @@ export class PlexClient {
             library: lib.title,
           });
         }
-      } catch {
+      } catch (error) {
+        if (!(error instanceof ApiError && error.statusCode === 404))
+          throw error;
         // Library may not support collections, skip
       }
     }
@@ -318,11 +349,9 @@ export class PlexClient {
 
     for (const lib of libraries) {
       try {
-        // Use Plex's duplicate filter
-        const response = await this.http.get<PlexMediaContainer<PlexMediaItem>>(
-          `/library/sections/${lib.key}/all?duplicate=1`,
-        );
-        const items = response.MediaContainer.Metadata || [];
+        const { items } = await this.getAllLibraryItems(lib.key, {
+          duplicate: "1",
+        });
 
         // Group by title+year to find actual duplicates
         const groups = new Map<string, PlexMediaItem[]>();
@@ -333,38 +362,36 @@ export class PlexClient {
           groups.set(key, existing);
         }
 
-        for (const [, groupItems] of groups) {
-          if (groupItems.length > 1) {
-            const dupItems = groupItems.map((item) => {
-              let sizeBytes = 0;
-              let resolution: string | undefined;
-              if (item.Media && item.Media.length > 0) {
-                resolution = item.Media[0].videoResolution;
-                if (item.Media[0].Part) {
-                  sizeBytes = item.Media[0].Part.reduce(
-                    (sum, part) => sum + (part.size || 0),
-                    0,
-                  );
-                }
-              }
-              return {
-                ratingKey: item.ratingKey,
-                sizeBytes,
-                resolution,
-              };
-            });
-
-            duplicates.push({
-              title: groupItems[0].title,
-              year: groupItems[0].year,
-              library: lib.title,
-              duplicateCount: groupItems.length,
-              totalSizeBytes: dupItems.reduce((sum, i) => sum + i.sizeBytes, 0),
-              items: dupItems,
-            });
-          }
+        for (const groupItems of groups.values()) {
+          // Plex normally represents duplicates as multiple Media versions on ONE metadata item.
+          const dupItems = groupItems.flatMap((item) =>
+            (item.Media ?? []).map((media) => ({
+              ratingKey: item.ratingKey,
+              sizeBytes: (media.Part ?? []).reduce(
+                (sum, part) => sum + (part.size || 0),
+                0,
+              ),
+              resolution: media.videoResolution,
+            })),
+          );
+          if (dupItems.length <= 1) continue;
+          // Savings are an estimate retaining the largest version, not a claim about quality.
+          dupItems.sort((a, b) => b.sizeBytes - a.sizeBytes);
+          duplicates.push({
+            title: groupItems[0].title,
+            year: groupItems[0].year,
+            library: lib.title,
+            duplicateCount: dupItems.length,
+            totalSizeBytes: dupItems.reduce(
+              (sum, item) => sum + item.sizeBytes,
+              0,
+            ),
+            items: dupItems,
+          });
         }
-      } catch {
+      } catch (error) {
+        if (!(error instanceof ApiError && error.statusCode === 404))
+          throw error;
         // Library may not support duplicate filter, skip
       }
     }
@@ -377,29 +404,12 @@ export class PlexClient {
    * This cleans up the database and can improve performance.
    */
   async optimizeDatabase(): Promise<{ success: boolean; message: string }> {
-    try {
-      // Plex optimize endpoint
-      await this.http.put<void>("/library/optimize?async=1", {});
-      return {
-        success: true,
-        message:
-          "Database optimization started. This may take a while depending on library size.",
-      };
-    } catch {
-      // Try alternative endpoint
-      try {
-        await this.http.get<void>("/library/optimize");
-        return {
-          success: true,
-          message: "Database optimization started.",
-        };
-      } catch {
-        return {
-          success: false,
-          message:
-            "Database optimization not available on this Plex server version.",
-        };
-      }
-    }
+    // Never replay a mutation after an ambiguous response or timeout.
+    await this.http.put<void>("/library/optimize?async=1");
+    return {
+      success: true,
+      message:
+        "Database optimization started. This may take a while depending on library size.",
+    };
   }
 }

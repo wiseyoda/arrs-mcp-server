@@ -28,6 +28,7 @@ export interface PlexMediaItem {
   ratingKey: string;
   key: string;
   guid: string;
+  Guid?: Array<{ id: string }>;
   type: "movie" | "show" | "season" | "episode";
   title: string;
   titleSort?: string;

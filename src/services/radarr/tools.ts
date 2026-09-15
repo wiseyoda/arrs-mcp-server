@@ -1,3 +1,4 @@
+import { booleanParam } from "../../shared/params.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Config } from "../../config.js";
@@ -216,7 +217,12 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "movie_add",
     "Add a movie to Radarr. Use movie_search first to find the TMDB ID.",
     {
-      tmdb_id: z.coerce.number().describe("TMDB ID of the movie to add"),
+      tmdb_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("TMDB ID of the movie to add"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
@@ -235,8 +241,7 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
         .describe(
           "Root folder path (optional, uses first available if not specified)",
         ),
-      search_now: z
-        .boolean()
+      search_now: booleanParam()
         .optional()
         .describe("Start searching for the movie immediately. Default: true"),
     },
@@ -286,9 +291,11 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
           const found = profiles.find(
             (p) => p.name.toLowerCase() === quality_profile.toLowerCase(),
           );
-          if (found) {
-            profileId = found.id;
-          }
+          if (!found)
+            throw new Error(
+              "Requested quality profile was not found; use the profiles tool to select a valid name.",
+            );
+          profileId = found.id;
         }
 
         // Find or use default folder
@@ -297,9 +304,11 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
           const found = folders.find((f) =>
             f.path.toLowerCase().includes(root_folder.toLowerCase()),
           );
-          if (found) {
-            folderPath = found.path;
-          }
+          if (!found)
+            throw new Error(
+              "Requested root folder was not found; use the folders tool to select a valid path.",
+            );
+          folderPath = found.path;
         }
 
         if (!profileId || !folderPath) {
@@ -375,12 +384,10 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
         .string()
         .optional()
         .describe("Filter by genre (partial match, e.g., 'action')"),
-      missing_only: z.coerce
-        .boolean()
+      missing_only: booleanParam()
         .optional()
         .describe("Only show movies without downloaded files"),
-      unmonitored_only: z.coerce
-        .boolean()
+      unmonitored_only: booleanParam()
         .optional()
         .describe("Only show unmonitored movies"),
       // Sorting
@@ -393,33 +400,34 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
       // Pagination
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(100)
         .describe("Maximum results to return. Default: 100"),
       offset: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .default(0)
         .describe("Skip this many results for pagination. Default: 0"),
-      summary: z.coerce
-        .boolean()
+      summary: booleanParam()
         .optional()
         .describe("Only return counts without listing items"),
       // Display options
-      show_size: z.coerce
-        .boolean()
+      show_size: booleanParam()
         .optional()
         .describe("Include disk size in output"),
-      show_rating: z.coerce
-        .boolean()
+      show_rating: booleanParam()
         .optional()
         .describe("Include rating in output"),
-      show_runtime: z.coerce
-        .boolean()
+      show_runtime: booleanParam()
         .optional()
         .describe("Include runtime in output"),
-      show_added: z.coerce
-        .boolean()
+      show_added: booleanParam()
         .optional()
         .describe("Include date added in output"),
     },
@@ -574,6 +582,9 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     {
       movie_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .describe("Radarr movie ID to search for upgrade"),
       quality: z
         .enum(["hd", "4k"])
@@ -608,18 +619,36 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "movie_delete",
     "Remove a movie from Radarr",
     {
-      movie_id: z.coerce.number().describe("Radarr movie ID to delete"),
+      movie_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Radarr movie ID to delete"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
         .describe("Which Radarr instance. Default: hd"),
-      delete_files: z
-        .boolean()
+      confirm: booleanParam()
+        .optional()
+        .default(false)
+        .describe("Must be true to confirm removal."),
+      delete_files: booleanParam()
         .optional()
         .describe("Also delete downloaded files. Default: false"),
     },
-    async ({ movie_id, quality, delete_files }) => {
+    async ({ movie_id, quality, delete_files, confirm }) => {
       try {
+        if (!confirm)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Removal requires confirm=true. Files are retained unless delete_files=true.",
+              },
+            ],
+            isError: true,
+          };
         const client = getRadarrClient(quality, config);
         const movie = await client.getMovie(movie_id);
         const shouldDeleteFiles = delete_files === true;
@@ -703,7 +732,12 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "radarr_details",
     "Get detailed information about a specific movie",
     {
-      movie_id: z.coerce.number().describe("Radarr movie ID"),
+      movie_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Radarr movie ID"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
@@ -732,18 +766,26 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
           outputParts.push("");
           outputParts.push("File Details:");
           if (movie.movieFile.quality?.quality?.name) {
-            outputParts.push(`  Quality: ${movie.movieFile.quality.quality.name}`);
+            outputParts.push(
+              `  Quality: ${movie.movieFile.quality.quality.name}`,
+            );
           }
           if (movie.movieFile.releaseGroup) {
-            outputParts.push(`  Release Group: ${movie.movieFile.releaseGroup}`);
+            outputParts.push(
+              `  Release Group: ${movie.movieFile.releaseGroup}`,
+            );
           }
           if (movie.movieFile.mediaInfo) {
             const mi = movie.movieFile.mediaInfo;
             if (mi.videoCodec) {
-              outputParts.push(`  Video: ${mi.videoCodec}${mi.videoDynamicRangeType ? ` (${mi.videoDynamicRangeType})` : ""}`);
+              outputParts.push(
+                `  Video: ${mi.videoCodec}${mi.videoDynamicRangeType ? ` (${mi.videoDynamicRangeType})` : ""}`,
+              );
             }
             if (mi.audioCodec) {
-              outputParts.push(`  Audio: ${mi.audioCodec}${mi.audioChannels ? ` ${mi.audioChannels}ch` : ""}`);
+              outputParts.push(
+                `  Audio: ${mi.audioCodec}${mi.audioChannels ? ` ${mi.audioChannels}ch` : ""}`,
+              );
             }
             if (mi.resolution) {
               outputParts.push(`  Resolution: ${mi.resolution}`);
@@ -758,7 +800,9 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
         if (movie.overview) outputParts.push(movie.overview);
 
         return {
-          content: [{ type: "text", text: outputParts.filter(Boolean).join("\n") }],
+          content: [
+            { type: "text", text: outputParts.filter(Boolean).join("\n") },
+          ],
         };
       } catch (error) {
         return {
@@ -896,6 +940,9 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     {
       movie_id: z.coerce
         .number()
+        .finite()
+        .int()
+        .positive()
         .optional()
         .describe(
           "Radarr movie ID to rescan (optional, rescans all if not specified)",
@@ -933,18 +980,36 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "radarr_blacklist",
     "Blacklist a release from the queue and optionally search for a replacement",
     {
-      queue_id: z.coerce.number().describe("Queue item ID to blacklist"),
+      confirm: booleanParam()
+        .optional()
+        .default(false)
+        .describe("Must be true to remove and blocklist this download."),
+      queue_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Queue item ID to blacklist"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
         .describe("Which Radarr instance. Default: hd"),
-      search_again: z
-        .boolean()
+      search_again: booleanParam()
         .optional()
         .describe("Search for a replacement after blacklisting. Default: true"),
     },
-    async ({ queue_id, quality, search_again }) => {
+    async ({ queue_id, quality, search_again, confirm }) => {
       try {
+        if (!confirm)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Blocklisting removes the download. Set confirm=true to proceed.",
+              },
+            ],
+            isError: true,
+          };
         const client = getRadarrClient(quality, config);
         const shouldSearch = search_again !== false;
         await client.deleteQueueItem(queue_id, {
@@ -981,7 +1046,12 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "radarr_rename",
     "Rename movie files using Radarr's naming rules",
     {
-      movie_id: z.coerce.number().describe("Radarr movie ID"),
+      movie_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Radarr movie ID"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
@@ -1015,7 +1085,12 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
     "radarr_refresh",
     "Refresh movie metadata from TMDB (updates info, images, etc.)",
     {
-      movie_id: z.coerce.number().describe("Radarr movie ID"),
+      movie_id: z.coerce
+        .number()
+        .finite()
+        .int()
+        .positive()
+        .describe("Radarr movie ID"),
       quality: z
         .enum(["hd", "4k"])
         .optional()
@@ -1055,6 +1130,9 @@ export function registerRadarrTools(server: McpServer, config: Config): void {
         .describe("Which Radarr instance. Default: hd"),
       limit: z.coerce
         .number()
+        .finite()
+        .int()
+        .nonnegative()
         .optional()
         .describe("Limit number of results. Default: 20"),
     },
